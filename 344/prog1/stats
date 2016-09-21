@@ -1,0 +1,15 @@
+#! /bin/bash
+
+# Program 1 -- CS 344
+#
+# Tim Thomas
+
+usage='Usage: stats {-rows|-cols} [file]'
+
+
+# Parse CL args
+
+
+echo $usage
+
+
