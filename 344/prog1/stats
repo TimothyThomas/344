@@ -1,15 +1,130 @@
-#! /bin/bash
+#!/bin/bash
 
 # Program 1 -- CS 344
 #
 # Tim Thomas
 
+
 usage='Usage: stats {-rows|-cols} [file]'
 
+function average {
+    sum=0
+    cnt=0
+    for val in $1; do
+        sum=`expr $sum + $val`
+        cnt=`expr $cnt + 1`
+    done
 
-# Parse CL args
+    # calculate and print mean
+    if [ $((cnt % 2)) -eq 0 ]; then                 # divisor is even
+        if [ $((sum % cnt)) -ge $((cnt/2)) ]; then  # round up 
+            mean=`expr $sum / $cnt + 1`
+        else                                        # round down
+            mean=`expr $sum / $cnt`
+        fi
+    else                                            # divisor is odd
+        if [ $((sum % cnt)) -gt $((cnt/2)) ]; then  # round up 
+            mean=`expr $sum / $cnt + 1`
+        else                                        # round down
+            mean=`expr $sum / $cnt`
+        fi
+    fi
+    echo -ne $mean '\t'
+}
 
 
-echo $usage
+function transpose {
+    # convert rows to cols
+    # Get number of columns
+    numCols=0
+    read line <$1
+    for val in ${line}; do
+        numCols=`expr $numCols + 1`
+    done
+
+    # transpose data 
+    TMP=./tempTranspose$$
+    i=1
+    while [[ $i -le $numCols ]] ; do 
+        cut -f $i $1 | tr '\n' '\t' >> $TMP
+        echo "" >> $TMP
+        i=`expr $i + 1` 
+    done
+}
 
 
+#   check that number of args is zero or 1
+if [[ $# -eq 2 ]]; then  
+
+    #   check that optional second arg is a file and is readable
+    if [ ! -r $2 ]; then
+        echo "$2 is not a readable file." >&2
+        exit 1
+    fi
+
+    input=$2
+        
+elif [[ $# -eq 1 ]]; then
+    cat > TMP$$
+    input=TMP$$
+
+else
+    echo $usage
+    echo "Number of command line args must be 0 or 1." >&2
+    exit 1
+fi
+
+
+#   check that first arg starts with 'c' or 'r'
+if [[ $1 == -r* ]]; then
+    echo "calculating row stats";
+    echo Average Median
+
+    # calculate and print median
+    while read line; do
+        cnt=0
+
+        for val in ${line}; do
+            cnt=`expr $cnt + 1`
+        done
+
+        middle=`expr $cnt / 2 + 1`
+        median=`echo ${line} | tr ' ' '\n' | sort | head -${middle} | tail -1`
+
+        average "${line}"
+        echo $median
+
+    done <${input}
+
+
+elif [[ $1 == -c* ]]; then
+    echo "calculating column stats";
+    transpose $input
+    input=./tempTranspose$$
+
+    echo "Averages:"
+    while read line; do
+        average "${line}"
+    done <$input
+
+    echo -e "\nMedians:"
+    while read line; do
+        cnt=0
+
+        for val in ${line}; do
+            cnt=`expr $cnt + 1`
+        done
+
+        middle=`expr $cnt / 2 + 1`
+        median=`echo ${line} | tr ' ' '\n' | sort | head -${middle} | tail -1`
+
+        echo -ne $median '\t'
+
+    done <${input}
+    echo ""
+
+else
+    echo $usage
+    echo "First argument must be -rows or -cols." >&2
+    exit 1
+fi
