@@ -7,6 +7,7 @@
 
 TMP_stdin=temp$$_stdin
 TMP_transpose=temp$$_transpose
+TMP_median=temp$$_median
 
 trap "rm -f temp$$*; exit 1" INT HUP TERM
 
@@ -34,7 +35,7 @@ function average {
             mean=`expr $sum / $cnt`
         fi
     fi
-    echo -ne $mean '\t'
+    echo -ne $mean'\t'
 }
 
 
@@ -66,6 +67,12 @@ if [[ $# -eq 2 ]]; then
         exit 1
     fi
 
+    #   check that input file has length greater than zero 
+    if [ ! -s $2 ]; then
+        echo "$2 is empty." >&2
+        exit 1
+    fi
+
     input=$2
         
 elif [[ $# -eq 1 ]]; then
@@ -73,15 +80,14 @@ elif [[ $# -eq 1 ]]; then
     input=$TMP_stdin
 
 else
-    echo $usage
-    echo "Number of command line args must be 0 or 1." >&2
+    echo $usage >&2
+#    echo "Number of command line args must be 0 or 1." >&2
     exit 1
 fi
 
 
 #   check that first arg starts with 'c' or 'r'
 if [[ $1 == -r* ]]; then
-    echo "calculating row stats";
     echo Average Median
 
     # calculate and print median
@@ -90,19 +96,21 @@ if [[ $1 == -r* ]]; then
 
         for val in ${line}; do
             cnt=`expr $cnt + 1`
+            echo $val >> $TMP_median
         done
 
         middle=`expr $cnt / 2 + 1`
-        median=`echo ${line} | tr ' ' '\n' | sort | head -${middle} | tail -1`
+        median=`cat $TMP_median | sort -n | head -${middle} | tail -1`
 
         average "${line}"
         echo $median
+
+        rm -f $TMP_median
 
     done <${input}
 
 
 elif [[ $1 == -c* ]]; then
-    echo "calculating column stats";
     transpose $input
     input=$TMP_transpose
 
@@ -117,19 +125,22 @@ elif [[ $1 == -c* ]]; then
 
         for val in ${line}; do
             cnt=`expr $cnt + 1`
+            echo $val >> $TMP_median
         done
 
         middle=`expr $cnt / 2 + 1`
-        median=`echo ${line} | tr ' ' '\n' | sort | head -${middle} | tail -1`
+        median=`cat $TMP_median | sort -n | head -${middle} | tail -1`
 
-        echo -ne $median '\t'
+        echo -ne $median'\t'
+        rm -f $TMP_median
 
     done <${input}
     echo ""
 
 else
-    echo $usage
-    echo "First argument must be -rows or -cols." >&2
+#    echo $usage
+    echo $usage >&2
+#    echo "First argument must be -rows or -cols." >&2
     exit 1
 fi
 
