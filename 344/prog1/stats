@@ -5,6 +5,11 @@
 # Tim Thomas
 
 
+TMP_stdin=temp$$_stdin
+TMP_transpose=temp$$_transpose
+
+trap "rm -f temp$$*; exit 1" INT HUP TERM
+
 usage='Usage: stats {-rows|-cols} [file]'
 
 function average {
@@ -43,11 +48,10 @@ function transpose {
     done
 
     # transpose data 
-    TMP=./tempTranspose$$
     i=1
     while [[ $i -le $numCols ]] ; do 
-        cut -f $i $1 | tr '\n' '\t' >> $TMP
-        echo "" >> $TMP
+        cut -f $i $1 | tr '\n' '\t' >> $TMP_transpose
+        echo "" >> $TMP_transpose
         i=`expr $i + 1` 
     done
 }
@@ -65,8 +69,8 @@ if [[ $# -eq 2 ]]; then
     input=$2
         
 elif [[ $# -eq 1 ]]; then
-    cat > TMP$$
-    input=TMP$$
+    cat > $TMP_stdin
+    input=$TMP_stdin
 
 else
     echo $usage
@@ -100,7 +104,7 @@ if [[ $1 == -r* ]]; then
 elif [[ $1 == -c* ]]; then
     echo "calculating column stats";
     transpose $input
-    input=./tempTranspose$$
+    input=$TMP_transpose
 
     echo "Averages:"
     while read line; do
@@ -128,3 +132,5 @@ else
     echo "First argument must be -rows or -cols." >&2
     exit 1
 fi
+
+rm -f temp$$*
