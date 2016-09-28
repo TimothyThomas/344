@@ -1,7 +1,6 @@
 #!/bin/bash
-
-# Program 1 -- CS 344
 #
+# Program 1 -- CS 344, Fall 2016
 # Tim Thomas
 
 
@@ -13,15 +12,20 @@ trap "rm -f temp$$*; exit 1" INT HUP TERM
 
 usage='Usage: stats {-rows|-cols} [file]'
 
-function average {
+
+# Function to calculate the average (mean) of a row of values
+#     $1 is a row of whitespace-separated values
+function calc_average {
     sum=0
     cnt=0
+
+    # Calculate sum of row or col and # of values in row or col
     for val in $1; do
         sum=`expr $sum + $val`
         cnt=`expr $cnt + 1`
     done
 
-    # calculate and print mean
+    # calculate mean (sum/cnt)
     if [ $((cnt % 2)) -eq 0 ]; then                 # divisor is even
         if [ $((sum % cnt)) -ge $((cnt/2)) ]; then  # round up 
             mean=`expr $sum / $cnt + 1`
@@ -35,12 +39,39 @@ function average {
             mean=`expr $sum / $cnt`
         fi
     fi
-    echo -ne $mean'\t'
+
+    echo $mean
 }
 
 
+# Function to calculate the median of a row of values
+#     $1 is a row of whitespace-separated values
+function calc_median {
+    cnt=0
+
+    # determine how many values we have
+    for val in $1; do
+        cnt=`expr $cnt + 1`
+        echo $val >> $TMP_median
+    done
+
+    # find location of middle value (bias towards greater value if cnt is even)
+    middle=`expr $cnt / 2 + 1`
+
+    # calculate median: 
+    #    list values | sort by number | list first $middle rows | list last row
+    median=`cat $TMP_median | sort -n | head -${middle} | tail -1`
+
+    rm -f $TMP_median
+    echo $median
+}
+
+
+# Function to convert rows of values to columns
+# Transposed data saved to file $TMP_transpose
+#     $1 contains input to be transposed
 function transpose {
-    # convert rows to cols
+
     # Get number of columns
     numCols=0
     read line <$1
@@ -58,8 +89,12 @@ function transpose {
 }
 
 
-#   check that number of args is zero or 1
-if [[ $# -eq 2 ]]; then  
+#  
+#  Check Usage
+# 
+
+#  check that number of args is 2 or 1
+if [[ $# -eq 2 ]]; then   
 
     #   check that optional second arg is a file and is readable
     if [ ! -r $2 ]; then
@@ -74,74 +109,68 @@ if [[ $# -eq 2 ]]; then
     fi
 
     input=$2
-        
+
+# no input file provided, so check process from stdin
 elif [[ $# -eq 1 ]]; then
     cat > $TMP_stdin
     input=$TMP_stdin
 
+# error, incorrect # of command line args
 else
     echo $usage >&2
-#    echo "Number of command line args must be 0 or 1." >&2
     exit 1
 fi
 
 
-#   check that first arg starts with 'c' or 'r'
-if [[ $1 == -r* ]]; then
+#
+#  Loop through rows/columns and perform calculations
+#
+
+#   make sure first arg starts with 'r' or 'c'
+if [[ $1 == -r* ]]; then      # Processing rows
     echo Average Median
 
-    # calculate and print median
+    # Calculate/print average and median for each row
     while read line; do
-        cnt=0
 
-        for val in ${line}; do
-            cnt=`expr $cnt + 1`
-            echo $val >> $TMP_median
-        done
+        avg=$(calc_average "${line}")
+        median=$(calc_median "${line}")
 
-        middle=`expr $cnt / 2 + 1`
-        median=`cat $TMP_median | sort -n | head -${middle} | tail -1`
-
-        average "${line}"
-        echo $median
-
-        rm -f $TMP_median
+        echo -e "$avg\t$median"
 
     done <${input}
 
 
-elif [[ $1 == -c* ]]; then
+elif [[ $1 == -c* ]]; then   # processing columns
+
+    # It's easier to calculate by row using the functions we already have.  
+    # So modify input so that rows/cols are transposed.
     transpose $input
     input=$TMP_transpose
 
+    # Loop through each column (now as rows); calc and print averages
     echo "Averages:"
     while read line; do
-        average "${line}"
+        avg=$(calc_average "${line}")
+        echo -ne "$avg\t"
     done <$input
 
+    # Loop through each column (now as rows); calc and print medians
     echo -e "\nMedians:"
     while read line; do
-        cnt=0
 
-        for val in ${line}; do
-            cnt=`expr $cnt + 1`
-            echo $val >> $TMP_median
-        done
-
-        middle=`expr $cnt / 2 + 1`
-        median=`cat $TMP_median | sort -n | head -${middle} | tail -1`
-
+        median=$(calc_median "${line}")
         echo -ne $median'\t'
-        rm -f $TMP_median
 
     done <${input}
-    echo ""
 
+# error, first argument must start with -r or -c
 else
-#    echo $usage
     echo $usage >&2
-#    echo "First argument must be -rows or -cols." >&2
     exit 1
 fi
 
+echo ""   # need a newline at very end
+
+# cleanup temp files
 rm -f temp$$*
