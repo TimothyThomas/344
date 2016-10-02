@@ -136,7 +136,7 @@ if [[ $1 == -r* ]]; then      # Processing rows
         avg=$(calc_average "${line}")
         median=$(calc_median "${line}")
 
-        echo -e "$avg\t$median"
+        echo -e "$avg       $median"
 
     done <${input}
 
@@ -152,7 +152,7 @@ elif [[ $1 == -c* ]]; then   # processing columns
     echo "Averages:"
     while read line; do
         avg=$(calc_average "${line}")
-        echo -ne "$avg\t"
+        echo -ne "$avg      "
     done <$input
 
     # Loop through each column (now as rows); calc and print medians
@@ -160,7 +160,7 @@ elif [[ $1 == -c* ]]; then   # processing columns
     while read line; do
 
         median=$(calc_median "${line}")
-        echo -ne $median'\t'
+        echo -ne $median'      '
 
     done <${input}
 
