@@ -152,25 +152,25 @@ echo
 echo --------------------------------------------------------------------------
 echo Good Syntax
 echo
-echo Standard Input on Rows: 2 points for exit value 0, 1 point for error text
+echo Standard Input on Rows: 2 points for exit value 0, 1 point for no error text
 $STATS -rows < file2 2> err.out
 echo Exit Value: $?
 echo Error Message:
 cat err.out
 echo
-echo Standard Input on Cols: 2 points for exit value 0, 1 point for error text
+echo Standard Input on Cols: 2 points for exit value 0, 1 point for no error text
 $STATS -cols < file2 2> err.out
 echo Exit Value: $?
 echo Error Message:
 cat err.out
 echo
-echo Option -cols: 2 points for exit value 0, 1 point for error text
+echo Option -cols: 2 points for exit value 0, 1 point for no error text
 $STATS -cols file2 2> err.out
 echo Exit Value: $?
 echo Error Message:
 cat err.out
 echo
-echo Option -rrrrrr: 2 points for exit value 0, 1 point for error text
+echo Option -rrrrrr: 2 points for exit value 0, 1 point for no error text
 $STATS -rrrrrr file2 2> err.out
 echo Exit Value: $?
 echo Error Message:
