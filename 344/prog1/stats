@@ -1,6 +1,9 @@
 #!/bin/bash
 #
 # Program 1 -- CS 344, Fall 2016
+# C
+# Calculates mean and median of each row or column in a table of values
+#
 # Tim Thomas
 
 
@@ -13,13 +16,13 @@ trap "rm -f temp$$*; exit 1" INT HUP TERM
 usage='Usage: stats {-rows|-cols} [file]'
 
 
-# Function to calculate the average (mean) of a row of values
-#     $1 is a row of whitespace-separated values
+# This function calculates the average (mean) of a row of values.
+# $1 is a row of whitespace-separated values
 function calc_average {
-    sum=0
-    cnt=0
 
     # Calculate sum of row or col and # of values in row or col
+    sum=0
+    cnt=0
     for val in $1; do
         sum=`expr $sum + $val`
         cnt=`expr $cnt + 1`
@@ -44,12 +47,12 @@ function calc_average {
 }
 
 
-# Function to calculate the median of a row of values
-#     $1 is a row of whitespace-separated values
+# This function calculates the median of a row of values.
+# $1 is a row of whitespace-separated values
 function calc_median {
-    cnt=0
 
     # determine how many values we have
+    cnt=0
     for val in $1; do
         cnt=`expr $cnt + 1`
         echo $val >> $TMP_median
@@ -67,9 +70,9 @@ function calc_median {
 }
 
 
-# Function to convert rows of values to columns
-# Transposed data saved to file $TMP_transpose
-#     $1 contains input to be transposed
+# This function converts rows of values to columns of values.
+# Transposed data saved to file $TMP_transpose.
+# $1 contains input data to be transposed.
 function transpose {
 
     # Get number of columns
@@ -82,6 +85,8 @@ function transpose {
     # transpose data 
     i=1
     while [[ $i -le $numCols ]] ; do 
+
+        # extract each column, convert to a row by swapping newlines with tabs
         cut -f $i $1 | tr '\n' '\t' >> $TMP_transpose
         echo "" >> $TMP_transpose
         i=`expr $i + 1` 
@@ -90,7 +95,7 @@ function transpose {
 
 
 #  
-#  Check Usage
+#  Check Command Line Usage
 # 
 
 #  check that number of args is 2 or 1
@@ -110,7 +115,7 @@ if [[ $# -eq 2 ]]; then
 
     input=$2
 
-# no input file provided, so check process from stdin
+# no input file provided, so process data from stdin
 elif [[ $# -eq 1 ]]; then
     cat > $TMP_stdin
     input=$TMP_stdin
@@ -138,13 +143,14 @@ if [[ $1 == -r* ]]; then      # Processing rows
 
         echo -e "$avg       $median"
 
-    done <${input}
+    done < ${input}
 
 
 elif [[ $1 == -c* ]]; then   # processing columns
 
-    # It's easier to calculate by row using the functions we already have.  
-    # So modify input so that rows/cols are transposed.
+    # The functions written at the top of this script handle rows of data.  
+    # So we modify input data so that rows/cols are transposed.
+    # And then we can process in the same way as if the user had passed -r.
     transpose $input
     input=$TMP_transpose
 
@@ -162,7 +168,7 @@ elif [[ $1 == -c* ]]; then   # processing columns
         median=$(calc_median "${line}")
         echo -ne $median'      '
 
-    done <${input}
+    done < ${input}
 
 # error, first argument must start with -r or -c
 else
