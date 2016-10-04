@@ -7,11 +7,15 @@
 # Tim Thomas
 
 
+# Setup temperorary files needed
 TMP_stdin=temp$$_stdin
 TMP_transpose=temp$$_transpose
 TMP_median=temp$$_median
 
+# trap interrupt, hangup and terminate signals; cleanup temp files
+# if signals caught
 trap "rm -f temp$$*; exit 1" INT HUP TERM
+
 
 usage='Usage: stats {-rows|-cols} [file]'
 
@@ -28,14 +32,20 @@ function calc_average {
         cnt=`expr $cnt + 1`
     done
 
-    # calculate mean (sum/cnt)
-    if [ $((cnt % 2)) -eq 0 ]; then                 # divisor is even
+    #
+    # calculate mean (sum/cnt). Half rounds up per assignment spec.
+    #
+
+    # if divisor is even:
+    if [ $((cnt % 2)) -eq 0 ]; then                 
         if [ $((sum % cnt)) -ge $((cnt/2)) ]; then  # round up 
             mean=`expr $sum / $cnt + 1`
         else                                        # round down
             mean=`expr $sum / $cnt`
         fi
-    else                                            # divisor is odd
+
+    # otherwise, divisor is odd
+    else                                           
         if [ $((sum % cnt)) -gt $((cnt/2)) ]; then  # round up 
             mean=`expr $sum / $cnt + 1`
         else                                        # round down
@@ -131,8 +141,10 @@ fi
 #  Loop through rows/columns and perform calculations
 #
 
-#   make sure first arg starts with 'r' or 'c'
-if [[ $1 == -r* ]]; then      # Processing rows
+# First make sure first arg starts with 'r' or 'c'
+#
+# Processing rows
+if [[ $1 == -r* ]]; then      
     echo Average Median
 
     # Calculate/print average and median for each row
@@ -145,8 +157,8 @@ if [[ $1 == -r* ]]; then      # Processing rows
 
     done < ${input}
 
-
-elif [[ $1 == -c* ]]; then   # processing columns
+# processing columns
+elif [[ $1 == -c* ]]; then   
 
     # The functions written at the top of this script handle rows of data.  
     # So we modify input data so that rows/cols are transposed.
