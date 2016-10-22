@@ -8,39 +8,73 @@
 
 
 const int NUM_ROOMS = 7;
-char ROOM_DIR[512];
-sprintf(ROOM_DIR, "trthomas.rooms.%i/", getpid());
 
-char* ROOM_NAMES[10];
-ROOM_NAMES[0] = "Mercury";
-ROOM_NAMES[1] = "Venus";
-ROOM_NAMES[2] = "Earth";
-ROOM_NAMES[3] = "Mars";
-ROOM_NAMES[4] = "Jupiter";
-ROOM_NAMES[5] = "Saturn";
-ROOM_NAMES[6] = "Uranus";
-ROOM_NAMES[7] = "Neptune";
-ROOM_NAMES[8] = "Pluto";
-ROOM_NAMES[9] = "Sol";
+const char* ROOM_NAMES[10] = {"Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus",
+                              "Neptune", "Pluto", "Sol"};
 
-struct room {
+struct Room {
     char* name;
     int cnxns[6];
     int num_cnxns;
 };
 
 
-int create_rooms(struct Items);
+int create_rooms(struct Room[NUM_ROOMS]);
+int find_start_room();
 
 int main() {
+    struct Room rooms[NUM_ROOMS]; 
+    printf("creating rooms...");
+    create_rooms(rooms);
 
-    struct room rooms[NUM_ROOMS]; 
-    create_rooms(rooms[NUM_ROOMS]);
+    // read in data from room files
+    int start_idx = find_start_room();
+    printf("Start room index is %i\n", start_idx);
+
     return 0;
 }
 
+int find_start_room() {
 
-int create_rooms(struct room rooms[NUM_ROOMS]) {
+    char ROOM_DIR[1024];
+    sprintf(ROOM_DIR, "trthomas.rooms.%d/", getpid());
+
+    int start_room_idx = -1;
+
+    // find starting room
+    for (int i = 0; i < 10; i++) {
+
+        char filename[512]; // = "";
+        sprintf(filename, "%s%s", ROOM_DIR, ROOM_NAMES[i]);
+        FILE *fd = fopen(filename, "r");
+        char *string = "START_ROOM\0";
+
+        if (fd != NULL) {   // file exists
+            char buf[11];
+
+            fseek(fd, -11, SEEK_END);
+            ssize_t len = fread(buf, sizeof(char), 10, fd);
+            buf[11] = '\0';
+            printf("buf = %s\n", buf);
+            printf("comparing %s (len=%d) and %s (len=%d)\n", string, strlen(string), buf, strlen(buf));
+
+            if (strcmp(buf, string) == 0) {
+                printf("Start room found!  It is: %s\n", ROOM_NAMES[i]);
+                start_room_idx = i;
+                fclose(fd);
+                break;
+            }
+            fclose(fd);
+        }
+    }
+    return start_room_idx; 
+}
+
+
+int create_rooms(struct Room rooms[NUM_ROOMS]) {
+
+    char ROOM_DIR[1024];
+    sprintf(ROOM_DIR, "trthomas.rooms.%d/", getpid());
 
     srand(time(NULL));
 
@@ -115,10 +149,9 @@ int create_rooms(struct room rooms[NUM_ROOMS]) {
     // Write room files 
     for (int i = 0; i < NUM_ROOMS; i++) {
 
-        char filename[512] = "";
-        strcat(filename, room_dir);
-        strcat(filename, rooms[i].name);
-        mkdir(room_dir, S_IRWXU | S_IRWXG | S_IRWXO);
+        char filename[512];
+        sprintf(filename, "%s%s", ROOM_DIR, rooms[i].name);
+        mkdir(ROOM_DIR, S_IRWXU | S_IRWXG | S_IRWXO);
         FILE *file;
         file = fopen(filename, "w");
         fprintf(file, "ROOM NAME: %s\n", rooms[i].name);
@@ -146,4 +179,6 @@ int create_rooms(struct room rooms[NUM_ROOMS]) {
     }
     return 0;
 }
+
+
 
