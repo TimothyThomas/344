@@ -7,30 +7,40 @@
 #include <time.h>
 
 
+const int NUM_ROOMS = 7;
+char ROOM_DIR[512];
+sprintf(ROOM_DIR, "trthomas.rooms.%i/", getpid());
+
+char* ROOM_NAMES[10];
+ROOM_NAMES[0] = "Mercury";
+ROOM_NAMES[1] = "Venus";
+ROOM_NAMES[2] = "Earth";
+ROOM_NAMES[3] = "Mars";
+ROOM_NAMES[4] = "Jupiter";
+ROOM_NAMES[5] = "Saturn";
+ROOM_NAMES[6] = "Uranus";
+ROOM_NAMES[7] = "Neptune";
+ROOM_NAMES[8] = "Pluto";
+ROOM_NAMES[9] = "Sol";
+
+struct room {
+    char* name;
+    int cnxns[6];
+    int num_cnxns;
+};
+
+
+int create_rooms(struct Items);
+
 int main() {
 
-    const int NUM_ROOMS = 7;
-    char room_dir[512];
-    sprintf(room_dir, "trthomas.rooms.%i/", getpid());
-    char* room_names[10];
-    room_names[0] = "Mercury";
-    room_names[1] = "Venus";
-    room_names[2] = "Earth";
-    room_names[3] = "Mars";
-    room_names[4] = "Jupiter";
-    room_names[5] = "Saturn";
-    room_names[6] = "Uranus";
-    room_names[7] = "Neptune";
-    room_names[8] = "Pluto";
-    room_names[9] = "Sol";
-
-    struct room {
-        char* name;
-        int cnxns[6];
-        int num_cnxns;
-    };
-
     struct room rooms[NUM_ROOMS]; 
+    create_rooms(rooms[NUM_ROOMS]);
+    return 0;
+}
+
+
+int create_rooms(struct room rooms[NUM_ROOMS]) {
 
     srand(time(NULL));
 
@@ -50,14 +60,14 @@ int main() {
 
         int unique = 1;
         for (int j = 0; j < i; j++) {
-            if (room_names[r] == rooms[j].name) {
+            if (ROOM_NAMES[r] == rooms[j].name) {
                 unique = 0; 
                 break;
             }
         }
 
         if (unique == 1) {
-            rooms[i].name = room_names[r];
+            rooms[i].name = ROOM_NAMES[r];
             i++;
         }
     }
@@ -136,3 +146,4 @@ int main() {
     }
     return 0;
 }
+
