@@ -16,62 +16,161 @@ struct Room {
     char* name;
     int cnxns[6];
     int num_cnxns;
+    char type;
 };
 
 
-int create_rooms(struct Room[NUM_ROOMS]);
-int find_start_room();
+int create_room_files(struct Room[NUM_ROOMS]);
+int read_room_data(struct Room[NUM_ROOMS]);
+int find_start_room(struct Room[NUM_ROOMS]);
+void prompt_user(struct Room);
 
 int main() {
+
+    setbuf(stdout, NULL);  // disable buffering on stdout
     struct Room rooms[NUM_ROOMS]; 
     printf("creating rooms...");
-    create_rooms(rooms);
+    create_room_files(rooms);
 
-    // read in data from room files
-    int start_idx = find_start_room();
-    printf("Start room index is %i\n", start_idx);
+
+    // re-initialize rooms struct
+    for (int i = 0; i < NUM_ROOMS; i++) {
+        rooms[i].name = "";
+        rooms[i].num_cnxns = 0;
+    }
+    
+    read_room_data(rooms);
+    int start_idx = find_start_room(rooms);
+
+    prompt_user(rooms[start_idx]);
 
     return 0;
 }
 
-int find_start_room() {
 
+void prompt_user(struct Room cur_room) {
+    printf("CURRENT LOCATION: %s\n", cur_room.name);
+    printf("POSSIBLE CONNECTIONS: ");
+    for (int i = 0; i < cur_room.num_cnxns; i++) {
+        if (i < cur_room.num_cnxns - 1) {
+            printf("%s, ", ROOM_NAMES[cur_room.cnxns[i]]);
+        }
+        else {
+            printf("%s.\n", ROOM_NAMES[cur_room.cnxns[i]]);
+        }
+    }
+    printf("WHERE TO? >");
+    int c = gets();
+}
+
+
+int read_room_data(struct Room rooms[NUM_ROOMS]) {
+    int r = 0;
+    int c;
     char ROOM_DIR[1024];
     sprintf(ROOM_DIR, "trthomas.rooms.%d/", getpid());
 
-    int start_room_idx = -1;
-
-    // find starting room
     for (int i = 0; i < 10; i++) {
 
-        char filename[512]; // = "";
+        char filename[512];
         sprintf(filename, "%s%s", ROOM_DIR, ROOM_NAMES[i]);
-        FILE *fd = fopen(filename, "r");
-        char *string = "START_ROOM\0";
+        FILE *fp = fopen(filename, "r");
 
-        if (fd != NULL) {   // file exists
-            char buf[11];
+        if (NULL != fp) {
 
-            fseek(fd, -11, SEEK_END);
-            ssize_t len = fread(buf, sizeof(char), 10, fd);
-            buf[11] = '\0';
-            printf("buf = %s\n", buf);
-            printf("comparing %s (len=%d) and %s (len=%d)\n", string, strlen(string), buf, strlen(buf));
+            rooms[r].name = ROOM_NAMES[i];
+            rooms[r].num_cnxns = 0;
 
-            if (strcmp(buf, string) == 0) {
-                printf("Start room found!  It is: %s\n", ROOM_NAMES[i]);
-                start_room_idx = i;
-                fclose(fd);
-                break;
-            }
-            fclose(fd);
+            // read first line
+            do {
+                c = fgetc(fp);
+                if (c == '\n') {
+                    break;
+                }
+            } while(1);
+
+            // read in connections
+            int still_more_connections = 1;
+            char name[50];
+            do {
+                c = fgetc(fp);
+
+                int n = 0;
+                if (c == ':') {   // read connections
+                    c = fgetc(fp); // read blank
+                    do {
+                        c = fgetc(fp);  
+                        if (c == '\n') {    
+                            c = fgetc(fp);
+                            if (c != 'C') {  
+                                still_more_connections = 0;
+                            }
+                            break;
+                        }
+                        name[n++] = c; 
+                    } while(1);
+                    name[n++] = '\0';
+
+                    // add connection
+                    for (int k = 0; k < 10; k++) {
+                        if (strcmp(name, ROOM_NAMES[k]) == 0) {
+                            rooms[r].cnxns[rooms[r].num_cnxns] = k;
+                            rooms[r].num_cnxns++;
+                        }
+                    }
+                }
+            } while(still_more_connections);
+            
+            // read room type
+            do {
+                c = fgetc(fp);
+                if (c == ':')
+                    break;
+            } while(1);
+
+            do { 
+                if (c == ':') {  
+                    c = fgetc(fp);  // read blank
+                    c = fgetc(fp);
+                    rooms[r].type = c;  // just hold 'S, M or E' for type
+                    break;
+                }
+            } while(1);
+
+            fclose(fp);
+            r++;
         }
     }
+
+    printf("Room data read from files: \n");
+    for (int i = 0; i < NUM_ROOMS; i++) {
+        printf("\nName: %s", rooms[i].name);
+        printf("\nConnections: ");
+        for (int j = 0; j < rooms[i].num_cnxns; j++) {
+            printf("%s, ", ROOM_NAMES[rooms[i].cnxns[j]]);
+        }
+        printf("\nType: %c\n", rooms[i].type);
+    }
+
+    return 0;
+}
+
+int find_start_room(struct Room rooms[NUM_ROOMS]) {
+
+    int start_room_idx = -1;
+
+    for (int i = 0; i < NUM_ROOMS; i++) {
+        if (rooms[i].type == 'S') {
+            start_room_idx = i;
+            break;
+        }
+    }
+
     return start_room_idx; 
 }
 
 
-int create_rooms(struct Room rooms[NUM_ROOMS]) {
+int create_room_files(struct Room rooms[NUM_ROOMS]) {
 
     char ROOM_DIR[1024];
     sprintf(ROOM_DIR, "trthomas.rooms.%d/", getpid());
@@ -157,7 +256,7 @@ int create_rooms(struct Room rooms[NUM_ROOMS]) {
         fprintf(file, "ROOM NAME: %s\n", rooms[i].name);
 
         // Write connections
-        for (int j = 0; j < rooms[i].num_cnxns; j++) {  // loop thru max possible connections (6)
+        for (int j = 0; j < rooms[i].num_cnxns; j++) {  
             fprintf(file, "CONNECTION %i: %s\n", j+1, rooms[rooms[i].cnxns[j]].name);
         }
             
@@ -179,6 +278,3 @@ int create_rooms(struct Room rooms[NUM_ROOMS]) {
     }
     return 0;
 }
-
-
-
