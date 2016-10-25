@@ -8,7 +8,6 @@
 
 
 const int NUM_ROOMS = 7;
-
 const char* ROOM_NAMES[10] = {"Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus",
                               "Neptune", "Pluto", "Sol"};
 
@@ -40,9 +39,60 @@ int main() {
     }
     
     read_room_data(rooms);
-    int start_idx = find_start_room(rooms);
+    int idx_cur = find_start_room(rooms);
+    
+    int num_steps = 0;
+    int steps[1024];
+    int game_over = 0;
+    struct Room cur_room = rooms[idx_cur];
 
-    prompt_user(rooms[start_idx]);
+    // Game loop
+    while (game_over == 0) {
+
+        prompt_user(cur_room);
+        
+        // get user input
+        char input[20];
+        fgets(input, 20, stdin); 
+        input[strcspn(input, "\n")] = 0;
+
+        // check if input matches current connections
+        int found = 0;
+        for (int i = 0; i < cur_room.num_cnxns; i++) {
+            if (strcmp(input, ROOM_NAMES[cur_room.cnxns[i]]) == 0) { 
+                printf("\n");
+                found = 1;
+                steps[num_steps++] = cur_room.cnxns[i];
+                //num_steps++;
+                break;
+            }
+        }
+        if (found == 0) {
+            printf("\nHUH? I DON'T UNDERSTAND THAT ROOM. TRY AGAIN.\n\n");
+        }
+        else {  
+            // find index of next room
+            for (int i = 0; i < NUM_ROOMS; i++) {
+                if (strcmp(input, rooms[i].name) == 0) {
+                    cur_room = rooms[i];
+                    break;
+                }
+            }
+
+            // check if next room is END ROOM
+            if (cur_room.type == 'E') {
+                printf("YOU HAVE FOUND THE END ROOM. CONGRATULATIONS!\n");
+                printf("YOU TOOK %i STEPS. YOUR PATH TO VICTORY WAS:\n", num_steps);
+
+                // Print path taken
+                for (int i = 0; i < num_steps; i++) {
+                    printf("%s\n", ROOM_NAMES[steps[i]]);
+                }
+
+                game_over = 1;
+            }
+        }
+    }
 
     return 0;
 }
@@ -60,7 +110,6 @@ void prompt_user(struct Room cur_room) {
         }
     }
     printf("WHERE TO? >");
-    int c = gets();
 }
 
 
@@ -77,7 +126,6 @@ int read_room_data(struct Room rooms[NUM_ROOMS]) {
         FILE *fp = fopen(filename, "r");
 
         if (NULL != fp) {
-
             rooms[r].name = ROOM_NAMES[i];
             rooms[r].num_cnxns = 0;
 
@@ -96,7 +144,7 @@ int read_room_data(struct Room rooms[NUM_ROOMS]) {
                 c = fgetc(fp);
 
                 int n = 0;
-                if (c == ':') {   // read connections
+                if (c == ':') {   
                     c = fgetc(fp); // read blank
                     do {
                         c = fgetc(fp);  
@@ -141,7 +189,7 @@ int read_room_data(struct Room rooms[NUM_ROOMS]) {
             r++;
         }
     }
-
+/*
     printf("Room data read from files: \n");
     for (int i = 0; i < NUM_ROOMS; i++) {
         printf("\nName: %s", rooms[i].name);
@@ -151,6 +199,7 @@ int read_room_data(struct Room rooms[NUM_ROOMS]) {
         }
         printf("\nType: %c\n", rooms[i].type);
     }
+    */
 
     return 0;
 }
@@ -210,7 +259,7 @@ int create_room_files(struct Room rooms[NUM_ROOMS]) {
 
         // generate 3 to 6 connections for each room
         int n = (rand() % 4) + 3;
-        printf("Want %i connections for room %s. Currently have %i\n", n, rooms[i].name, rooms[i].num_cnxns);
+//        printf("Want %i connections for room %s. Currently have %i\n", n, rooms[i].name, rooms[i].num_cnxns);
 
         // add random connections
         while (rooms[i].num_cnxns < n) { 
