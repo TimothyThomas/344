@@ -8,7 +8,7 @@
 
 
 const int NUM_ROOMS = 7;
-const char* ROOM_NAMES[10] = {"Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus",
+char* ROOM_NAMES[10] = {"Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus",
                               "Neptune", "Pluto", "Sol"};
 
 struct Room {
@@ -31,9 +31,10 @@ int main() {
     printf("creating rooms...");
     create_room_files(rooms);
 
+    int i;
 
     // re-initialize rooms struct
-    for (int i = 0; i < NUM_ROOMS; i++) {
+    for (i = 0; i < NUM_ROOMS; i++) {
         rooms[i].name = "";
         rooms[i].num_cnxns = 0;
     }
@@ -58,7 +59,7 @@ int main() {
 
         // check if input matches current connections
         int found = 0;
-        for (int i = 0; i < cur_room.num_cnxns; i++) {
+        for (i = 0; i < cur_room.num_cnxns; i++) {
             if (strcmp(input, ROOM_NAMES[cur_room.cnxns[i]]) == 0) { 
                 printf("\n");
                 found = 1;
@@ -72,7 +73,7 @@ int main() {
         }
         else {  
             // find index of next room
-            for (int i = 0; i < NUM_ROOMS; i++) {
+            for (i = 0; i < NUM_ROOMS; i++) {
                 if (strcmp(input, rooms[i].name) == 0) {
                     cur_room = rooms[i];
                     break;
@@ -85,7 +86,7 @@ int main() {
                 printf("YOU TOOK %i STEPS. YOUR PATH TO VICTORY WAS:\n", num_steps);
 
                 // Print path taken
-                for (int i = 0; i < num_steps; i++) {
+                for (i = 0; i < num_steps; i++) {
                     printf("%s\n", ROOM_NAMES[steps[i]]);
                 }
 
@@ -101,7 +102,8 @@ int main() {
 void prompt_user(struct Room cur_room) {
     printf("CURRENT LOCATION: %s\n", cur_room.name);
     printf("POSSIBLE CONNECTIONS: ");
-    for (int i = 0; i < cur_room.num_cnxns; i++) {
+    int i;
+    for (i = 0; i < cur_room.num_cnxns; i++) {
         if (i < cur_room.num_cnxns - 1) {
             printf("%s, ", ROOM_NAMES[cur_room.cnxns[i]]);
         }
@@ -115,11 +117,11 @@ void prompt_user(struct Room cur_room) {
 
 int read_room_data(struct Room rooms[NUM_ROOMS]) {
     int r = 0;
-    int c;
+    int c, i;
     char ROOM_DIR[1024];
     sprintf(ROOM_DIR, "trthomas.rooms.%d/", getpid());
 
-    for (int i = 0; i < 10; i++) {
+    for (i = 0; i < 10; i++) {
 
         char filename[512];
         sprintf(filename, "%s%s", ROOM_DIR, ROOM_NAMES[i]);
@@ -160,7 +162,8 @@ int read_room_data(struct Room rooms[NUM_ROOMS]) {
                     name[n++] = '\0';
 
                     // add connection
-                    for (int k = 0; k < 10; k++) {
+                    int k;
+                    for (k = 0; k < 10; k++) {
                         if (strcmp(name, ROOM_NAMES[k]) == 0) {
                             rooms[r].cnxns[rooms[r].num_cnxns] = k;
                             rooms[r].num_cnxns++;
@@ -207,8 +210,9 @@ int read_room_data(struct Room rooms[NUM_ROOMS]) {
 int find_start_room(struct Room rooms[NUM_ROOMS]) {
 
     int start_room_idx = -1;
+    int i;
 
-    for (int i = 0; i < NUM_ROOMS; i++) {
+    for (i = 0; i < NUM_ROOMS; i++) {
         if (rooms[i].type == 'S') {
             start_room_idx = i;
             break;
@@ -227,21 +231,23 @@ int create_room_files(struct Room rooms[NUM_ROOMS]) {
     srand(time(NULL));
 
     // initialize set of rooms
-    for (int i = 0; i < NUM_ROOMS; i++) {
+    int i, j;
+    for (i = 0; i < NUM_ROOMS; i++) {
         rooms[i].name = "";
         rooms[i].num_cnxns = 0;
-        for (int j = 0; j < 6; j++) {
+        int j;
+        for (j = 0; j < 6; j++) {
             rooms[i].cnxns[j] = -1;
         }
     }
 
     // now randomly assign names to set of rooms
-    int i = 0;
+    i = 0;
     while (i < NUM_ROOMS) {
         int r = rand() % 10;
 
         int unique = 1;
-        for (int j = 0; j < i; j++) {
+        for (j = 0; j < i; j++) {
             if (ROOM_NAMES[r] == rooms[j].name) {
                 unique = 0; 
                 break;
@@ -255,7 +261,7 @@ int create_room_files(struct Room rooms[NUM_ROOMS]) {
     }
 
     // create room 
-    for (int i = 0; i < NUM_ROOMS; i++) {
+    for (i = 0; i < NUM_ROOMS; i++) {
 
         // generate 3 to 6 connections for each room
         int n = (rand() % 4) + 3;
@@ -264,7 +270,7 @@ int create_room_files(struct Room rooms[NUM_ROOMS]) {
         // add random connections
         while (rooms[i].num_cnxns < n) { 
 
-            for (int j = 0; j < NUM_ROOMS; j++) {
+            for (j = 0; j < NUM_ROOMS; j++) {
 
                 if (j == i) continue;  // room can't connect to itself
 
@@ -274,7 +280,8 @@ int create_room_files(struct Room rooms[NUM_ROOMS]) {
 
                     // check if connection is unique
                     int unique = 1;
-                    for (int k = 0; k < 6; k++) {
+                    int k;
+                    for (k = 0; k < 6; k++) {
                         if (rooms[i].cnxns[k] == j) {
                             unique = 0;
                         }
@@ -295,7 +302,7 @@ int create_room_files(struct Room rooms[NUM_ROOMS]) {
     }
 
     // Write room files 
-    for (int i = 0; i < NUM_ROOMS; i++) {
+    for (i = 0; i < NUM_ROOMS; i++) {
 
         char filename[512];
         sprintf(filename, "%s%s", ROOM_DIR, rooms[i].name);
@@ -305,7 +312,7 @@ int create_room_files(struct Room rooms[NUM_ROOMS]) {
         fprintf(file, "ROOM NAME: %s\n", rooms[i].name);
 
         // Write connections
-        for (int j = 0; j < rooms[i].num_cnxns; j++) {  
+        for (j = 0; j < rooms[i].num_cnxns; j++) {  
             fprintf(file, "CONNECTION %i: %s\n", j+1, rooms[rooms[i].cnxns[j]].name);
         }
             
