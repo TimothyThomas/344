@@ -26,9 +26,7 @@ void prompt_user(struct Room);
 
 int main() {
 
-    setbuf(stdout, NULL);  // disable buffering on stdout
     struct Room rooms[NUM_ROOMS]; 
-    printf("creating rooms...");
     create_room_files(rooms);
 
     int i;
@@ -128,7 +126,7 @@ int read_room_data(struct Room rooms[NUM_ROOMS]) {
     int r = 0;
     int c, i;
     char ROOM_DIR[1024];
-    sprintf(ROOM_DIR, "trthomas.rooms.%d/", getpid());
+    sprintf(ROOM_DIR, "thomasti.rooms.%d/", getpid());
 
     // Loop through each of the 10 possible room names and look for a match
     for (i = 0; i < 10; i++) {
@@ -255,7 +253,7 @@ int find_start_room(struct Room rooms[NUM_ROOMS]) {
 
 /* 
  * This function takes no arguments.  It creates several files
- * representing the various rooms in the directory trthomas.rooms.pid, where pid
+ * representing the various rooms in the directory thomasti.rooms.pid, where pid
  * is the process id. The number of connections between rooms and which rooms
  * get connected is randomly generated with the restriction that there must be
  * at least 3 connections (all two-way) to a given room so that the graph is
@@ -265,7 +263,7 @@ int create_room_files() {
 
     // set up directory for room files
     char ROOM_DIR[1024];
-    sprintf(ROOM_DIR, "trthomas.rooms.%d/", getpid());
+    sprintf(ROOM_DIR, "thomasti.rooms.%d/", getpid());
 
     // seed random number generator
     srand(time(NULL));
