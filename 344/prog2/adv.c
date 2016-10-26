@@ -19,7 +19,7 @@ struct Room {
 };
 
 
-int create_room_files(struct Room[NUM_ROOMS]);
+int create_room_files();
 int read_room_data(struct Room[NUM_ROOMS]);
 int find_start_room(struct Room[NUM_ROOMS]);
 void prompt_user(struct Room);
@@ -99,6 +99,9 @@ int main() {
 }
 
 
+/* 
+ * Display user with current room information and prompt for next room.
+*/ 
 void prompt_user(struct Room cur_room) {
     printf("CURRENT LOCATION: %s\n", cur_room.name);
     printf("POSSIBLE CONNECTIONS: ");
@@ -115,23 +118,32 @@ void prompt_user(struct Room cur_room) {
 }
 
 
+/*
+ * This function accepts an array of Room structs.  It then populates the data
+ * of these structs by reading/parsing the data in the room files created by
+ * create_room_files function.
+*/
+
 int read_room_data(struct Room rooms[NUM_ROOMS]) {
     int r = 0;
     int c, i;
     char ROOM_DIR[1024];
     sprintf(ROOM_DIR, "trthomas.rooms.%d/", getpid());
 
+    // Loop through each of the 10 possible room names and look for a match
     for (i = 0; i < 10; i++) {
 
+        // assume there is a file with ROOM_NAME[i]
         char filename[512];
         sprintf(filename, "%s%s", ROOM_DIR, ROOM_NAMES[i]);
         FILE *fp = fopen(filename, "r");
 
+        // If file descriptor is not null, that means a room with room name i exists
         if (NULL != fp) {
             rooms[r].name = ROOM_NAMES[i];
             rooms[r].num_cnxns = 0;
 
-            // read first line
+            // read first line from file (and ignore it since we already know the name)
             do {
                 c = fgetc(fp);
                 if (c == '\n') {
@@ -139,29 +151,49 @@ int read_room_data(struct Room rooms[NUM_ROOMS]) {
                 }
             } while(1);
 
-            // read in connections
-            int still_more_connections = 1;
-            char name[50];
+            // Read subsequent lines defining the connections.
+            // still_more_connections is a flag to indicate if there are more
+            // conections to process
+            int still_more_connections = 1;  
+            char name[50];                   // connecting room name string read in from file
             do {
-                c = fgetc(fp);
+                c = fgetc(fp);               // read a character
 
-                int n = 0;
-                if (c == ':') {   
-                    c = fgetc(fp); // read blank
+                int n = 0;           // n holds index of current char being read into name string
+                if (c == ':') {           
+
+                    // a colon was encountered, that means the next word is a connecting room
+                    c = fgetc(fp);    // read and ignore blank space after colon
+
+                    // continue reading characters into name string until newline encountered
                     do {
                         c = fgetc(fp);  
+
                         if (c == '\n') {    
+
+                            // check if next char is a 'C' (meaning more
+                            // connections to process).  If not a 'C', the only
+                            // other possibility is an 'R' which means we're
+                            // done processing connections and can move on to
+                            // room type.
                             c = fgetc(fp);
+
                             if (c != 'C') {  
                                 still_more_connections = 0;
                             }
-                            break;
+                            break;     
                         }
+
+                        // char was not a newline, so append to string and keep looping
                         name[n++] = c; 
                     } while(1);
-                    name[n++] = '\0';
 
-                    // add connection
+
+                    // finished processing the current connection 
+                    name[n++] = '\0';  // terminate string
+
+                    // add connection to room i struct by storing its index
+                    // within ROOM_NAMES
                     int k;
                     for (k = 0; k < 10; k++) {
                         if (strcmp(name, ROOM_NAMES[k]) == 0) {
@@ -172,46 +204,44 @@ int read_room_data(struct Room rooms[NUM_ROOMS]) {
                 }
             } while(still_more_connections);
             
-            // read room type
+            // Process room type (last line of file).
+            // Start by just reading up until the colon.
             do {
                 c = fgetc(fp);
                 if (c == ':')
                     break;
             } while(1);
 
+            // Only need to read/store first char after colon to get type since type
+            // is either START, MID or END 
             do { 
                 if (c == ':') {  
-                    c = fgetc(fp);  // read blank
-                    c = fgetc(fp);
-                    rooms[r].type = c;  // just hold 'S, M or E' for type
+                    c = fgetc(fp);      // read blank space
+                    c = fgetc(fp);      // read first char indicating type 
+                    rooms[r].type = c;  
                     break;
                 }
             } while(1);
 
-            fclose(fp);
-            r++;
+            fclose(fp);  
+            r++;            // room array index
         }
     }
-/*
-    printf("Room data read from files: \n");
-    for (int i = 0; i < NUM_ROOMS; i++) {
-        printf("\nName: %s", rooms[i].name);
-        printf("\nConnections: ");
-        for (int j = 0; j < rooms[i].num_cnxns; j++) {
-            printf("%s, ", ROOM_NAMES[rooms[i].cnxns[j]]);
-        }
-        printf("\nType: %c\n", rooms[i].type);
-    }
-    */
 
     return 0;
 }
 
+
+/* 
+ * This function accepts an array of Room structs and finds the array index of the room 
+ * with type START_ROOM.
+ */
 int find_start_room(struct Room rooms[NUM_ROOMS]) {
 
     int start_room_idx = -1;
     int i;
 
+    // Loop until room type matches 'S' (room types are stored as 'S', 'M' or 'E'
     for (i = 0; i < NUM_ROOMS; i++) {
         if (rooms[i].type == 'S') {
             start_room_idx = i;
@@ -223,29 +253,43 @@ int find_start_room(struct Room rooms[NUM_ROOMS]) {
 }
 
 
-int create_room_files(struct Room rooms[NUM_ROOMS]) {
+/* 
+ * This function takes no arguments.  It creates several files
+ * representing the various rooms in the directory trthomas.rooms.pid, where pid
+ * is the process id. The number of connections between rooms and which rooms
+ * get connected is randomly generated with the restriction that there must be
+ * at least 3 connections (all two-way) to a given room so that the graph is
+ * fully connected.
+*/ 
+int create_room_files() {
 
+    // set up directory for room files
     char ROOM_DIR[1024];
     sprintf(ROOM_DIR, "trthomas.rooms.%d/", getpid());
 
+    // seed random number generator
     srand(time(NULL));
 
-    // initialize set of rooms
+    // initialize data for each room
+    struct Room rooms[NUM_ROOMS];
     int i, j;
     for (i = 0; i < NUM_ROOMS; i++) {
         rooms[i].name = "";
         rooms[i].num_cnxns = 0;
-        int j;
         for (j = 0; j < 6; j++) {
-            rooms[i].cnxns[j] = -1;
+            rooms[i].cnxns[j] = -1;   
         }
     }
 
-    // now randomly assign names to set of rooms
+    // randomly assign names from the set of 10 names, to the set of 7 rooms to
+    // be used in the game
     i = 0;
     while (i < NUM_ROOMS) {
-        int r = rand() % 10;
 
+        // generate a random number between 0 and 9 (corresponding to indices of ROOM_NAMES array
+        int r = rand() % 10;    
+
+        // verify this name is not already in use
         int unique = 1;
         for (j = 0; j < i; j++) {
             if (ROOM_NAMES[r] == rooms[j].name) {
@@ -254,18 +298,19 @@ int create_room_files(struct Room rooms[NUM_ROOMS]) {
             }
         }
 
+        // if name not already in use, assign it to room i and move on to next room
         if (unique == 1) {
             rooms[i].name = ROOM_NAMES[r];
             i++;
         }
     }
 
-    // create room 
+
+    // Randomly create 3 to 6 connections to/from each room 
     for (i = 0; i < NUM_ROOMS; i++) {
 
         // generate 3 to 6 connections for each room
         int n = (rand() % 4) + 3;
-//        printf("Want %i connections for room %s. Currently have %i\n", n, rooms[i].name, rooms[i].num_cnxns);
 
         // add random connections
         while (rooms[i].num_cnxns < n) { 
@@ -301,26 +346,27 @@ int create_room_files(struct Room rooms[NUM_ROOMS]) {
         }
     }
 
-    // Write room files 
+    // Write room data to files 
     for (i = 0; i < NUM_ROOMS; i++) {
 
+        // create directory for room files
         char filename[512];
         sprintf(filename, "%s%s", ROOM_DIR, rooms[i].name);
         mkdir(ROOM_DIR, S_IRWXU | S_IRWXG | S_IRWXO);
+
+        // create file names to correspond to room name
         FILE *file;
         file = fopen(filename, "w");
+
+        // Write room name
         fprintf(file, "ROOM NAME: %s\n", rooms[i].name);
 
-        // Write connections
+        // Write room connections
         for (j = 0; j < rooms[i].num_cnxns; j++) {  
             fprintf(file, "CONNECTION %i: %s\n", j+1, rooms[rooms[i].cnxns[j]].name);
         }
             
-        // room type
-        if (file == NULL) {
-            printf("Something went wrong, file %s not created.\n", filename);
-        }
-
+        // Write room type
         if (i == 0) {
             fprintf(file, "ROOM TYPE: START_ROOM\n");
         } 
@@ -330,6 +376,7 @@ int create_room_files(struct Room rooms[NUM_ROOMS]) {
         else {
             fprintf(file, "ROOM TYPE: MID_ROOM\n");
         } 
+
         fclose(file);
     }
     return 0;
