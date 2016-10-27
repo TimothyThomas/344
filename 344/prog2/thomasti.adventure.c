@@ -1,3 +1,11 @@
+/* CS 344 Spring 2016
+ *
+ * Program 2 -- Adventure Game
+ *
+ * by Tim Thomas (username: thomasti)
+ *
+ */
+
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -7,31 +15,34 @@
 #include <time.h>
 
 
+// Initialize number of rooms and room names.
 const int NUM_ROOMS = 7;
 char* ROOM_NAMES[10] = {"Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus",
                               "Neptune", "Pluto", "Sol"};
 
 struct Room {
-    char* name;
-    int cnxns[6];
-    int num_cnxns;
-    char type;
+    char* name;       // randomly selected name from list above
+    int cnxns[6];     // indices of connecting rooms
+    int num_cnxns;    // number of connecting rooms
+    char type;        // type of room, either S, M or E for (start, mid or end)
 };
 
-
+// Function prototypes
 int create_room_files();
 int read_room_data(struct Room[NUM_ROOMS]);
 int find_start_room(struct Room[NUM_ROOMS]);
 void prompt_user(struct Room);
 
+
 int main() {
 
-    struct Room rooms[NUM_ROOMS]; 
+    struct Room rooms[NUM_ROOMS];        // array of room structs
     create_room_files(rooms);
 
+    // After create_room_files executes, the room file have been written and the
+    // array of Room structs contain all the room data.  Now  we need to wipe
+    // out data in the rooms array and read it back in from the files.
     int i;
-
-    // re-initialize rooms struct
     for (i = 0; i < NUM_ROOMS; i++) {
         rooms[i].name = "";
         rooms[i].num_cnxns = 0;
@@ -45,7 +56,7 @@ int main() {
     int game_over = 0;
     struct Room cur_room = rooms[idx_cur];
 
-    // Game loop
+    // Main Game loop
     while (game_over == 0) {
 
         prompt_user(cur_room);
@@ -62,7 +73,6 @@ int main() {
                 printf("\n");
                 found = 1;
                 steps[num_steps++] = cur_room.cnxns[i];
-                //num_steps++;
                 break;
             }
         }
