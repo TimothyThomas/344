@@ -279,8 +279,7 @@ int create_room_files() {
         }
     }
 
-    // randomly assign names from the set of 10 names, to the set of 7 rooms to
-    // be used in the game
+    // randomly assign names from the 10 available to the set of 7 rooms to be used in the game.
     i = 0;
     while (i < NUM_ROOMS) {
 
@@ -304,45 +303,77 @@ int create_room_files() {
     }
 
 
-    // Randomly create 3 to 6 connections to/from each room 
+    // generate at least 3 connections for each room to start (some will have more since all
+    // connections are 2-way)
     for (i = 0; i < NUM_ROOMS; i++) {
 
-        // generate 3 to 6 connections for each room
-        int n = (rand() % 4) + 3;
+        while (rooms[i].num_cnxns < 3) {
 
-        // add random connections
-        while (rooms[i].num_cnxns < n) { 
+            // randomly find a room to assign a connection to
+            int unique = 0;
+            int r;
+            while (unique == 0) {  
+                r = rand() % 7;     // pick from 7 available rooms
+                if (r == i) {       // can't connect to itself
+                    continue;
+                }
 
-            for (j = 0; j < NUM_ROOMS; j++) {
-
-                if (j == i) continue;  // room can't connect to itself
-
-                // roll the dice to determine if room j should be connected
-                int c = rand() % 2;
-                if (c == 1) {   // add cnxn
-
-                    // check if connection is unique
-                    int unique = 1;
-                    int k;
-                    for (k = 0; k < 6; k++) {
-                        if (rooms[i].cnxns[k] == j) {
-                            unique = 0;
-                        }
-                    }
-
-                    // if unique, add connection
-                    if (unique == 1) {
-                        rooms[i].cnxns[rooms[i].num_cnxns] = j;
-                        rooms[i].num_cnxns++;
-
-                        // add connection to other room as well
-                        rooms[j].cnxns[rooms[j].num_cnxns] = i;
-                        rooms[j].num_cnxns++;
+                unique = 1;         // assume unique until proven otherwise
+                int k;
+                for (k = 0; k < 6; k++) {  // check that connection not already used
+                    if (rooms[i].cnxns[k] == r) {
+                        unique = 0;
+                        break;
                     }
                 }
-            }
+            } 
+
+            // add connection
+            rooms[i].cnxns[rooms[i].num_cnxns] = r;
+            rooms[i].num_cnxns++;
+            rooms[r].cnxns[rooms[r].num_cnxns] = i;
+            rooms[r].num_cnxns++;
         }
     }
+
+
+    // add some additional connections at random
+    for (i = 0; i < NUM_ROOMS; i++) {
+
+        // Give a 1 in 2 chance of creating a new connection.
+        // Testing shows this results in a good distribution of # of connections for all rooms.
+        int n = rand() % 3;   
+        while (n == 0 && rooms[i].num_cnxns < 6) {  
+
+            // Same as before.  Ensure connection is unique before adding.
+            int unique = 0;
+            int r;
+            while (unique == 0) { 
+                r = rand() % 7;    
+                if (r == i) {
+                    continue;   // can't connect to itself, get a new random number.
+                }
+
+                unique = 1;
+                int k;
+                for (k = 0; k < 6; k++) {  // check that connection not already used
+                    if (rooms[i].cnxns[k] == r) {
+                        unique = 0;
+                        break;
+                    }
+                }
+            } 
+
+            // add connection
+            rooms[i].cnxns[rooms[i].num_cnxns] = r;
+            rooms[i].num_cnxns++;
+            rooms[r].cnxns[rooms[r].num_cnxns] = i;
+            rooms[r].num_cnxns++;
+
+            n = rand() % 3 + i;   // Adding i makes it less likely new cnxn added with each iteration 
+        }
+    }
+
 
     // Write room data to files 
     for (i = 0; i < NUM_ROOMS; i++) {
