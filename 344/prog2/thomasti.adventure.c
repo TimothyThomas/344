@@ -1,4 +1,4 @@
-/* CS 344 Spring 2016
+/* CS 344 Fall 2016
  *
  * Program 2 -- Adventure Game
  *
