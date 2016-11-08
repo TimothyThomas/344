@@ -20,13 +20,17 @@ int main() {
         char input[MAX_INPUT_SIZE + 1];
         fgets(input, MAX_INPUT_SIZE, stdin); 
 
-        // first handle case where input is a blank line
+        // handle case where input is a blank line
         if (strcmp(input, "\n") == 0) {
             exitStatus = 0;
             continue;
         }
 
-
+        // handle case where input begins with '#' 
+        if (input[0] == '#') {
+            exitStatus = 0;
+            continue;
+        }
 
         input[strcspn(input, "\n")] = 0;
 
