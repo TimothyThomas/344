@@ -106,7 +106,7 @@ int main() {
                 else if (strcmp(arg, ">") == 0) {  // redirect stdout 
                     char* outfile = strtok(NULL, " ");
                     outputFD = open(outfile, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-                    if (outputFD == -1) { perror("open()"); error = 1; break; }
+                    if (outputFD == -1) { perror(outfile); error = 1; break; }
 
                     // save current stdout so we can switch back after current command is processed
                     saved_stdout = dup(1); 
@@ -118,7 +118,7 @@ int main() {
                 else if (strcmp(arg, "<") == 0) {  // redirect stdin 
                     char* infile = strtok(NULL, " ");
                     inputFD = open(infile, O_RDONLY);
-                    if (inputFD == -1) { perror("open()"); error = 1; break; }
+                    if (inputFD == -1) { perror(infile); error = 1; break; }
                       
                     // save current stdin so we can switch back after current command is processed
                     saved_stdin = dup(0); 
@@ -146,13 +146,14 @@ int main() {
                 case -1: {perror("Error spawning process.\n"); exit(1); break; }
                 case 0: {
                     execvp(args[0], args);
-                    //perror("No such file or directory.\n");
                     perror(args[0]);
                     exit(2); break;
                 }
                 default: {
-                    pid_t actualPid = waitpid(spawnPid, &childExitStatus, 0);
-                    exitStatus = WEXITSTATUS(childExitStatus); 
+                    if (is_foreground != 0) {
+                        pid_t actualPid = waitpid(spawnPid, &childExitStatus, 0);
+                        exitStatus = WEXITSTATUS(childExitStatus); 
+                    }
                     break;
                 }
             }
