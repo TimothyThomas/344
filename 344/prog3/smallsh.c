@@ -92,13 +92,18 @@ int main() {
         // Check for built-in commands
         if (strcmp(cmd, "exit") == 0) {
 
-            // TODO: kill off all processes
+            // kill off all processes
+            kill(0, SIGTERM);
             exitStatus = 0;
             exit(0);
         }
 
         else if (strcmp(cmd, "cd") == 0) {
             char* newpath = strtok(NULL, " ");
+            if (newpath == NULL) {                // cd followed by nothing; go to $HOME
+                newpath = getenv("HOME"); 
+            }
+
             if (chdir(newpath) != 0) {
                 printf("Error changing directory to: %s\n", newpath);
                 exitStatus = 1;
