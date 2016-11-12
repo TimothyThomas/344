@@ -4,15 +4,57 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <signal.h>
 
 #define MAX_INPUT_SIZE 2048
 
+
 int main() {
 
-    int is_foreground = 1;   // flag for whether command is to be a FG or BG process
     int exitStatus = 0;
+    int childPID = 0;
+    int bgPIDs[10000];
+    int num_procs = 0; 
+
+    struct sigaction SIGINT_action_parent;
+    SIGINT_action_parent.sa_handler = SIG_IGN; 
+    sigfillset(&SIGINT_action_parent.sa_mask);   // block/delay all signals arriving while this mask in place
+    sigaction(SIGINT, &SIGINT_action_parent, NULL);
 
     while (1) {
+
+
+        int is_background = 0;   // flag for whether command is to be a FG or BG process
+
+        // check if background processes have terminated
+        int childExitMethod = -5;
+        for (int i = 0; i < num_procs; i++) {
+            childPID = waitpid(-1, &childExitMethod, WNOHANG);
+            if (childPID != 0) {
+
+                if (WIFEXITED(childExitMethod) != 0) {
+                    printf("Background PID %d is done: exit value %d\n", childPID, WEXITSTATUS(childExitMethod));
+                    fflush(stdout);
+                }
+
+                else if (WIFSIGNALED(childExitMethod) != 0) {
+                    printf("Background PID %d is done: terminated by signal %d\n", 
+                           childPID, WTERMSIG(childExitMethod));
+                    fflush(stdout);
+                }
+
+                else {
+                    printf("Background PID %d is done, but did not exit normally or with signal.\n", childPID);
+                    fflush(stdout);
+                }
+
+                // shift all PIDs down in array
+                for (int j = i+1; j < num_procs; j++) {
+                    bgPIDs[j-1] = bgPIDs[j];
+                }
+                num_procs--;
+            }
+        }
 
         printf(": ");
         fflush(stdout);
@@ -74,14 +116,6 @@ int main() {
             exitStatus = 0;
         }
 
-        //else if (strcmp(cmd, "") == 0) {
-        /*
-        else if (cmd[0] == '\0') { 
-            printf("Blank line entered\n");
-            fflush(stdout);
-            exitStatus = 0;
-        }
-        */
 
         // Not a built-in command.  Execute with fork() and exec()
         else {
@@ -100,7 +134,7 @@ int main() {
                 }
 
                 else if (strcmp(arg, "&") == 0) {
-                    is_foreground = 0;
+                    is_background = 1;
                 }
 
                 else if (strcmp(arg, ">") == 0) {  // redirect stdout 
@@ -140,19 +174,29 @@ int main() {
 
             // spawn child process
             pid_t spawnPid = -5;
-            int childExitStatus = -5;
+            int childExitMethod = -5;
             spawnPid = fork();
             switch(spawnPid) {
                 case -1: {perror("Error spawning process.\n"); exit(1); break; }
                 case 0: {
+                    struct sigaction SIGINT_action_child;
+                    SIGINT_action_child.sa_handler = SIG_DFL; 
+                    sigfillset(&SIGINT_action_child.sa_mask);   // block/delay all signals arriving while this mask in place
+                    sigaction(SIGINT, &SIGINT_action_child, NULL);
+
                     execvp(args[0], args);
                     perror(args[0]);
                     exit(2); break;
                 }
                 default: {
-                    if (is_foreground != 0) {
-                        pid_t actualPid = waitpid(spawnPid, &childExitStatus, 0);
-                        exitStatus = WEXITSTATUS(childExitStatus); 
+                    if (is_background == 0) {
+                        pid_t actualPid = waitpid(spawnPid, &childExitMethod, 0);
+                        exitStatus = WEXITSTATUS(childExitMethod); 
+                    }
+                    else {
+                        printf("Starting background process: %d\n", spawnPid);
+                        bgPIDs[num_procs] = spawnPid;
+                        num_procs++;
                     }
                     break;
                 }
@@ -167,30 +211,3 @@ int main() {
     return 0;
 }
 
-
-/*
-int execute_child(char* argc, char* argv[]) {
-    int status = 0;
-    // spawn child process
-    pid_t spawnPid = -5;
-    int childExitStatus = -5;
-    spawnPid = fork();
-    switch(spawnPid) {
-        case -1: {perror("Error spawning process.\n"); exit(1); break; }
-        case 0: {
-            execvp(args[0], args);
-            perror("Child process exec failure!\n");
-            exit(2); break;
-        }
-        default: {
-            pid_t actualPid = waitpid(spawnPid, &childExitStatus, 0);
-            exitStatus = WEXITSTATUS(childExitStatus); 
-            break;
-        }
-    }
-
-
-
-    return status;
-}
-*/
