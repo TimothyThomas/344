@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -15,6 +16,18 @@ int main() {
     int childPID = 0;
     int bgPIDs[10000];
     int num_procs = 0; 
+    int fg_terminated = 0;  // flag indicating if last foreground process was terminated with signal
+    
+    // file descriptors for input/output redirection
+    int inputFD, outputFD;
+
+    // flags indicating if stdin/stdout have been redirected
+    int stdin_redirected = 0;
+    int stdout_redirected = 0;
+
+    // original file descriptors for stdin/stdout
+    int saved_stdout = dup(1);
+    int saved_stdin = dup(0);
 
     struct sigaction SIGINT_action_parent;
     SIGINT_action_parent.sa_handler = SIG_IGN; 
@@ -22,7 +35,6 @@ int main() {
     sigaction(SIGINT, &SIGINT_action_parent, NULL);
 
     while (1) {
-
 
         int is_background = 0;   // flag for whether command is to be a FG or BG process
 
@@ -76,18 +88,7 @@ int main() {
 
         input[strcspn(input, "\n")] = 0;
 
-        // file descriptors for input/output redirection
-        int inputFD, outputFD;
-
-        // original file descriptors for stdin/stdout
-        int saved_stdout = dup(1);
-        int saved_stdin = dup(0);
-
-        // exit status of smallshell command
-
         char* cmd = strtok(input, " "); 
-
-        //printf("Input is: %s\n", cmd);
 
         // Check for built-in commands
         if (strcmp(cmd, "exit") == 0) {
@@ -116,8 +117,15 @@ int main() {
         else if (strcmp(cmd, "status") == 0) {
 
             // print status
+            if (fg_terminated != 0) {
+                printf("terminated by signal ");
+            }
+            else {
+                printf("exit value ");
+            }
             printf("%d\n", exitStatus);
             fflush(stdout);
+            fg_terminated = 0;
             exitStatus = 0;
         }
 
@@ -151,7 +159,8 @@ int main() {
                     saved_stdout = dup(1); 
 
                     int result = dup2(outputFD, 1);
-                    if (result == -1) { perror("dup2"); exit(2); }
+                    if (result == -1) { perror("dup2"); exit(1); }
+                    stdout_redirected = 1;
                 }
 
                 else if (strcmp(arg, "<") == 0) {  // redirect stdin 
@@ -163,7 +172,8 @@ int main() {
                     saved_stdin = dup(0); 
 
                     int result = dup2(inputFD, 0);
-                    if (result == -1) { perror("dup2"); exit(2); }
+                    if (result == -1) { perror("dup2"); exit(1); }
+                    stdin_redirected = 1;
                 }
 
                 else {
@@ -183,23 +193,54 @@ int main() {
             spawnPid = fork();
             switch(spawnPid) {
                 case -1: {perror("Error spawning process.\n"); exit(1); break; }
-                case 0: {
+                case 0: {  // child process
                     struct sigaction SIGINT_action_child;
                     SIGINT_action_child.sa_handler = SIG_DFL; 
                     sigfillset(&SIGINT_action_child.sa_mask);   // block/delay all signals arriving while this mask in place
                     sigaction(SIGINT, &SIGINT_action_child, NULL);
 
-                    execvp(args[0], args);
-                    perror(args[0]);
-                    exit(2); break;
+                    // if process is being sent to background, redirect stdin/stdout to
+                    // /dev/null if they aren't already redirected
+                    if (is_background != 0) {
+
+                        if (stdin_redirected == 0) {  // stdin not redirected for this command
+                            int dev_null_in = open("/dev/null", O_RDONLY);
+                            dup2(dev_null_in, 0);
+                            close(dev_null_in);
+                            stdin_redirected = 1;
+                        }
+
+                        if (stdout_redirected == 0) {  // stdout not redirected for this command
+                            int dev_null_out = open("/dev/null", O_WRONLY);
+                            dup2(dev_null_out, 1);
+                            close(dev_null_out);
+                            stdout_redirected = 1;
+                        }
+                    }
+
+                    if (execvp(args[0], args) < 0) {
+                        perror(args[0]);
+                        exit(1); 
+                    }
+                    break;
                 }
-                default: {
+                default: {  // parent process
+
                     if (is_background == 0) {
-                        pid_t actualPid = waitpid(spawnPid, &childExitMethod, 0);
+                        waitpid(spawnPid, &childExitMethod, 0);
                         exitStatus = WEXITSTATUS(childExitMethod); 
+
+                        // check and notify if foreground process terminated by signal
+                        if (WIFSIGNALED(childExitMethod) != 0) {
+                            printf("terminated by signal %d\n", WTERMSIG(childExitMethod));
+                            fflush(stdout);
+                            exitStatus = WTERMSIG(childExitMethod);
+                            fg_terminated = 1;
+                        }
                     }
                     else {
                         printf("Starting background process: %d\n", spawnPid);
+                        fflush(stdout);
                         bgPIDs[num_procs] = spawnPid;
                         num_procs++;
                     }
@@ -210,9 +251,11 @@ int main() {
             // restore original stdin and stdout (to terminal)
             dup2(saved_stdout, 1);
             dup2(saved_stdin, 0);
+            stdin_redirected = 0;
+            stdout_redirected = 0;
+
         }
     }
 
     return 0;
 }
-
