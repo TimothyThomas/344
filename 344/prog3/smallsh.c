@@ -1,3 +1,8 @@
+/*
+ * CS 344, Fall 2016
+ * Program 3 - smallsh
+ * Tim Thomas
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,12 +15,46 @@
 #define MAX_INPUT_SIZE 2048
 
 
+/* This function checks if any background processes have completed.  It receives
+ * a single pointer to an integer which holds the count of currently running
+ * background processes.  If none have exited, immediately returns.  
+ */
+void check_background_procs(int* child_proc_count) {
+
+    int childExitMethod = -5;
+    while (*child_proc_count > 0) {
+        int childPID = waitpid(-1, &childExitMethod, WNOHANG);
+        if (childPID != 0) {
+
+            if (WIFEXITED(childExitMethod) != 0) {
+                printf("Background PID %d is done: exit value %d\n", childPID, WEXITSTATUS(childExitMethod));
+                fflush(stdout);
+            }
+
+            else if (WIFSIGNALED(childExitMethod) != 0) {
+                printf("Background PID %d is done: terminated by signal %d\n", 
+                        childPID, WTERMSIG(childExitMethod));
+                fflush(stdout);
+            }
+
+            else {
+                printf("Background PID %d is done, but did not exit normally or with signal.\n", childPID);
+                fflush(stdout);
+            }
+            (*child_proc_count)--;
+        }
+        else {
+            break;
+        }
+    }
+}
+
+
 int main() {
 
     int exitStatus = 0;
-    int childPID = 0;
-    int bgPIDs[10000];
-    int num_procs = 0; 
+    int num_bg_procs = 0; 
+    int* ptr_num_bg_procs = &num_bg_procs;
     int fg_terminated = 0;  // flag indicating if last foreground process was terminated with signal
     
     // file descriptors for input/output redirection
@@ -29,6 +68,7 @@ int main() {
     int saved_stdout = dup(1);
     int saved_stdin = dup(0);
 
+    // Define signal handler for parent process (i.e. the shell itself)
     struct sigaction SIGINT_action_parent;
     SIGINT_action_parent.sa_handler = SIG_IGN; 
     sigfillset(&SIGINT_action_parent.sa_mask);   // block/delay all signals arriving while this mask in place
@@ -39,38 +79,13 @@ int main() {
         int is_background = 0;   // flag for whether command is to be a FG or BG process
 
         // check if background processes have terminated
-        int childExitMethod = -5;
-        for (int i = 0; i < num_procs; i++) {
-            childPID = waitpid(-1, &childExitMethod, WNOHANG);
-            if (childPID != 0) {
+        check_background_procs(ptr_num_bg_procs);
 
-                if (WIFEXITED(childExitMethod) != 0) {
-                    printf("Background PID %d is done: exit value %d\n", childPID, WEXITSTATUS(childExitMethod));
-                    fflush(stdout);
-                }
-
-                else if (WIFSIGNALED(childExitMethod) != 0) {
-                    printf("Background PID %d is done: terminated by signal %d\n", 
-                           childPID, WTERMSIG(childExitMethod));
-                    fflush(stdout);
-                }
-
-                else {
-                    printf("Background PID %d is done, but did not exit normally or with signal.\n", childPID);
-                    fflush(stdout);
-                }
-
-                // shift all PIDs down in array
-                for (int j = i+1; j < num_procs; j++) {
-                    bgPIDs[j-1] = bgPIDs[j];
-                }
-                num_procs--;
-            }
-        }
-
+        // Display command prompt
         printf(": ");
         fflush(stdout);
 
+        // Read input command from stdin
         char input[MAX_INPUT_SIZE + 1];
         fgets(input, MAX_INPUT_SIZE, stdin); 
 
@@ -86,27 +101,34 @@ int main() {
             continue;
         }
 
+        // strip newline at the end of the input string
         input[strcspn(input, "\n")] = 0;
 
+        // begin tokenizing input.  After next line cmd contains first word of command.
         char* cmd = strtok(input, " "); 
 
-        // Check for built-in commands
+        // handle built-ins exit command
         if (strcmp(cmd, "exit") == 0) {
 
-            // kill off all processes
+            // kill off all processes and exit
             kill(0, SIGTERM);
-            exitStatus = 0;
             exit(0);
         }
 
+        // handle built-ins cd command
         else if (strcmp(cmd, "cd") == 0) {
-            char* newpath = strtok(NULL, " ");
-            if (newpath == NULL) {                // cd followed by nothing; go to $HOME
-                newpath = getenv("HOME"); 
+
+            // next token contains path
+            char* target = strtok(NULL, " ");
+
+            // if no path given, target path is HOME directory
+            if (target == NULL) {               
+                target = getenv("HOME"); 
             }
 
-            if (chdir(newpath) != 0) {
-                printf("Error changing directory to: %s\n", newpath);
+            // change directory to target
+            if (chdir(target) != 0) {
+                printf("Error changing directory to: %s\n", target);
                 exitStatus = 1;
             }
             else {
@@ -114,30 +136,35 @@ int main() {
             }
         }
 
+        // handle built-ins status command
+        // exitStatus contains exit value of previously executed command
         else if (strcmp(cmd, "status") == 0) {
 
-            // print status
-            if (fg_terminated != 0) {
+            if (fg_terminated != 0) {             // terminated by signal 
                 printf("terminated by signal ");
             }
-            else {
+
+            else {                                // terminated normally 
                 printf("exit value ");
             }
             printf("%d\n", exitStatus);
             fflush(stdout);
+
+            // reset flags and exit status
             fg_terminated = 0;
             exitStatus = 0;
         }
 
 
-        // Not a built-in command.  Execute with fork() and exec()
+        // Handle all other cases (not a built-in, blank line or comment).  Use fork() and exec().
         else {
-            char* args[512];
-            args[0] = cmd;
+
+            char* args[512];   // array of strings for all arguments (similar to argv)
+            args[0] = cmd;     // first word of command string
+            exitStatus = 0;
 
             // build the argv array
             int i = 1;
-            int error = 0;
             while (1) {
                 char* arg = strtok(NULL, " ");
 
@@ -153,7 +180,7 @@ int main() {
                 else if (strcmp(arg, ">") == 0) {  // redirect stdout 
                     char* outfile = strtok(NULL, " ");
                     outputFD = open(outfile, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-                    if (outputFD == -1) { perror(outfile); error = 1; break; }
+                    if (outputFD == -1) { perror(outfile); exitStatus = 1; break; }
 
                     // save current stdout so we can switch back after current command is processed
                     saved_stdout = dup(1); 
@@ -166,7 +193,7 @@ int main() {
                 else if (strcmp(arg, "<") == 0) {  // redirect stdin 
                     char* infile = strtok(NULL, " ");
                     inputFD = open(infile, O_RDONLY);
-                    if (inputFD == -1) { perror(infile); error = 1; break; }
+                    if (inputFD == -1) { perror(infile); exitStatus = 1; break; }
                       
                     // save current stdin so we can switch back after current command is processed
                     saved_stdin = dup(0); 
@@ -182,8 +209,7 @@ int main() {
             } 
 
             // check if error in command line args/files
-            if (error == 1) {
-                exitStatus = 1;
+            if (exitStatus == 1) {
                 continue;
             }
 
@@ -191,26 +217,33 @@ int main() {
             pid_t spawnPid = -5;
             int childExitMethod = -5;
             spawnPid = fork();
+
             switch(spawnPid) {
+
                 case -1: {perror("Error spawning process.\n"); exit(1); break; }
+
                 case 0: {  // child process
+
+                    // create signal handler for child process (use default action)
                     struct sigaction SIGINT_action_child;
                     SIGINT_action_child.sa_handler = SIG_DFL; 
-                    sigfillset(&SIGINT_action_child.sa_mask);   // block/delay all signals arriving while this mask in place
+                    sigfillset(&SIGINT_action_child.sa_mask);   
                     sigaction(SIGINT, &SIGINT_action_child, NULL);
 
                     // if process is being sent to background, redirect stdin/stdout to
                     // /dev/null if they aren't already redirected
                     if (is_background != 0) {
 
-                        if (stdin_redirected == 0) {  // stdin not redirected for this command
+                        // check if stdin redirected; if not, redirect to /dev/null
+                        if (stdin_redirected == 0) {  
                             int dev_null_in = open("/dev/null", O_RDONLY);
                             dup2(dev_null_in, 0);
                             close(dev_null_in);
                             stdin_redirected = 1;
                         }
 
-                        if (stdout_redirected == 0) {  // stdout not redirected for this command
+                        // check if stdout redirected; if not, redirect to /dev/null
+                        if (stdout_redirected == 0) {  
                             int dev_null_out = open("/dev/null", O_WRONLY);
                             dup2(dev_null_out, 1);
                             close(dev_null_out);
@@ -218,14 +251,17 @@ int main() {
                         }
                     }
 
+                    // Execute command
                     if (execvp(args[0], args) < 0) {
                         perror(args[0]);
                         exit(1); 
                     }
                     break;
                 }
+
                 default: {  // parent process
 
+                    // '&' was supplied, so wait for child process to finish
                     if (is_background == 0) {
                         waitpid(spawnPid, &childExitMethod, 0);
                         exitStatus = WEXITSTATUS(childExitMethod); 
@@ -235,14 +271,16 @@ int main() {
                             printf("terminated by signal %d\n", WTERMSIG(childExitMethod));
                             fflush(stdout);
                             exitStatus = WTERMSIG(childExitMethod);
-                            fg_terminated = 1;
+                            fg_terminated = 1;   
                         }
                     }
+
+                    // '&' was not supplied, so just report PID, increment
+                    // background process counter and continue
                     else {
-                        printf("Starting background process: %d\n", spawnPid);
+                        printf("background pid is %d\n", spawnPid);
                         fflush(stdout);
-                        bgPIDs[num_procs] = spawnPid;
-                        num_procs++;
+                        num_bg_procs++;
                     }
                     break;
                 }
@@ -253,7 +291,6 @@ int main() {
             dup2(saved_stdin, 0);
             stdin_redirected = 0;
             stdout_redirected = 0;
-
         }
     }
 
