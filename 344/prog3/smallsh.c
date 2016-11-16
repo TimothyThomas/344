@@ -52,10 +52,10 @@ void check_background_procs(int* child_proc_count) {
 
 int main() {
 
-    int exitStatus = 0;
-    int num_bg_procs = 0; 
-    int* ptr_num_bg_procs = &num_bg_procs;
+    int exitStatus = 0;      // holds exit status of last completed foreground command
     int fg_terminated = 0;  // flag indicating if last foreground process was terminated with signal
+    int num_bg_procs = 0;   
+    int* ptr_num_bg_procs = &num_bg_procs;
     
     // file descriptors for input/output redirection
     int inputFD, outputFD;
@@ -78,7 +78,7 @@ int main() {
 
         int is_background = 0;   // flag for whether command is to be a FG or BG process
 
-        // check if background processes have terminated
+        // check if any background processes have terminated
         check_background_procs(ptr_num_bg_procs);
 
         // Display command prompt
@@ -107,7 +107,7 @@ int main() {
         // begin tokenizing input.  After next line cmd contains first word of command.
         char* cmd = strtok(input, " "); 
 
-        // handle built-ins exit command
+        // handle built-in exit command
         if (strcmp(cmd, "exit") == 0) {
 
             // kill off all processes and exit
@@ -168,16 +168,19 @@ int main() {
             while (1) {
                 char* arg = strtok(NULL, " ");
 
+                // command is a single word
                 if (arg == NULL) {
                     args[i++] = arg;
                     break;
                 }
 
+                // command should be executed in background
                 else if (strcmp(arg, "&") == 0) {
                     is_background = 1;
                 }
 
-                else if (strcmp(arg, ">") == 0) {  // redirect stdout 
+                // redirect stdout
+                else if (strcmp(arg, ">") == 0) {  
                     char* outfile = strtok(NULL, " ");
                     outputFD = open(outfile, O_WRONLY | O_CREAT | O_TRUNC, 0644);
                     if (outputFD == -1) { perror(outfile); exitStatus = 1; break; }
@@ -185,12 +188,14 @@ int main() {
                     // save current stdout so we can switch back after current command is processed
                     saved_stdout = dup(1); 
 
+                    // redirect and set flag
                     int result = dup2(outputFD, 1);
                     if (result == -1) { perror("dup2"); exit(1); }
                     stdout_redirected = 1;
                 }
 
-                else if (strcmp(arg, "<") == 0) {  // redirect stdin 
+                // redirect stdin
+                else if (strcmp(arg, "<") == 0) {  
                     char* infile = strtok(NULL, " ");
                     inputFD = open(infile, O_RDONLY);
                     if (inputFD == -1) { perror(infile); exitStatus = 1; break; }
@@ -198,11 +203,13 @@ int main() {
                     // save current stdin so we can switch back after current command is processed
                     saved_stdin = dup(0); 
 
+                    // redirect and set flag
                     int result = dup2(inputFD, 0);
                     if (result == -1) { perror("dup2"); exit(1); }
                     stdin_redirected = 1;
                 }
 
+                // if not NULL, &, < or >, just add to list of args
                 else {
                     args[i++] = arg;
                 }
@@ -238,7 +245,6 @@ int main() {
                         if (stdin_redirected == 0) {  
                             int dev_null_in = open("/dev/null", O_RDONLY);
                             dup2(dev_null_in, 0);
-                            close(dev_null_in);
                             stdin_redirected = 1;
                         }
 
@@ -246,7 +252,6 @@ int main() {
                         if (stdout_redirected == 0) {  
                             int dev_null_out = open("/dev/null", O_WRONLY);
                             dup2(dev_null_out, 1);
-                            close(dev_null_out);
                             stdout_redirected = 1;
                         }
                     }
