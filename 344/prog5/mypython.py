@@ -4,6 +4,7 @@ OSU CS 344, Fall 2016
 Program 5 -- Python Exploration
 '''
 
+from __future__ import print_function
 import string
 import random
 
