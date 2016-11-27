@@ -77,20 +77,67 @@ int main(int argc, char *argv[])
         if (establishedConnectionFD < 0) error("ERROR on accept");
         printf("SERVER: Connected Client at port %d\n", ntohs(clientAddress.sin_port));
 
-        // Get the SIZE OF plaintext message from the client and display it
-        memset(size_buffer, '\0', sizeof(size_buffer));
-        charsRead = recv(establishedConnectionFD, size_buffer, sizeof(size_buffer)-1, 0); 
-        if (charsRead < 0) error("ERROR reading from socket");
-        printf("SERVER: I am expecting a message of this size from the client (string): \"%s\"\n", size_buffer);
-        int plaintext_size = atoi(size_buffer);
-        printf("SERVER: I am expecting a message of this size from the client (int): %d\n", plaintext_size);
-        
-        // Get the plaintext message from the client and display it
-        memset(plaintext_buffer, '\0', MAX_MSG_SIZE);
-        charsRead = recv(establishedConnectionFD, plaintext_buffer, plaintext_size, 0); 
-        if (charsRead < 0) error("ERROR reading from socket");
-        printf("SERVER: I received this plaintext from the client: \"%s\"\n", plaintext_buffer);
-       
+        // spawn child process
+        pid_t spawnPid = -5;
+        int childExitMethod = -5;
+        spawnPid = fork();
+
+        switch(spawnPid) {
+
+            case -1: { perror("Error spawning process.\n"); exit(1); break; }
+
+            case 0: {   //child process
+
+                // child verify communication with otp_enc
+                char password[2];
+                memset(password, '\0', 2);
+                charsRead = recv(establishedConnectionFD, password, 1, 0); 
+
+                if (strcmp(password, "$") != 0) { 
+                    printf("SERVER: Could not connect to otp_enc_d. Incorrect password.\n"); 
+                    continue; 
+                }
+                else {
+                    printf("SERVER: Successfully made connection between otp_enc_d and otp_enc.\n");
+                    strcpy(password, "#");
+                    // acknowledge by sending back '#'
+                    send(establishedConnectionFD, password, 1, 0);
+                }
+
+
+                // child Get the plaintext message from the client and display it
+                char complete_msg[70000], read_buffer[MAX_MSG_SIZE+1];
+                memset(complete_msg, '\0', sizeof(complete_msg));
+                while (strstr(complete_msg, "$$") == NULL) {  // until terminal is found
+                    memset(read_buffer, '\0', sizeof(read_buffer));
+                    charsRead = recv(establishedConnectionFD, read_buffer, sizeof(read_buffer)-1, 0); 
+                    strcat(complete_msg, read_buffer); 
+                    if (charsRead < 0) error("ERROR reading from socket");
+                }
+
+                // strip terminal characters
+                int terminalLocation = strstr(complete_msg, "$$") - complete_msg;
+                complete_msg[terminalLocation] = '\0';
+                printf("SERVER: I received this plaintext from the client: \"%s\"\n", complete_msg);
+
+                // child receive key
+                // child check that key is big enough
+                // child perform encryption
+                // child send ciphertext
+
+                exit(0);
+                break;
+            }
+
+            default: {       // parent process
+
+                // wait for child to finish. 
+                // TODO: might need to remove this to handle multiple connections.
+                waitpid(spawnPid, &childExitMethod, 0);
+                break;
+            }
+        }
+
         /*
         // Get the key from the client and display it
         memset(key_buffer, '\0', MAX_MSG_SIZE);

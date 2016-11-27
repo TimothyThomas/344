@@ -12,23 +12,39 @@ int MAX_SEND_SIZE = 999;
 
 void error(const char *msg) { perror(msg); exit(1); } // Error function used for reporting issues
 
-void send_to_server(const char *text, int length, int socketFD) {
+void send_to_server(const char *text, int socketFD) {
 
-    // first send how many characters to expect
-    char msg_size_str[4];    // string holding size of message (3 bytes plus \0 so max is 999);
-    memset(msg_size_str, '\0', sizeof(msg_size_str));
-    snprintf(msg_size_str, sizeof(msg_size_str), "%03d", strlen(text));
+    int msg_size_int;
+    int offset = 0;          // keeps track of how many chars have been sent so far
+    char complete_msg[strlen(text) + 3];  // add 2 for terminal chars and 1 for \0
+    memset(complete_msg, '\0', sizeof(complete_msg));
+    strcat(complete_msg, text);
+    strcat(complete_msg, "$$");
+    int remaining_chars = strlen(complete_msg);
 
-    int charsWritten = send(socketFD, msg_size_str, strlen(msg_size_str), 0);
-    if (charsWritten < 0) error("CLIENT: ERROR writing to socket");
-    if (charsWritten < strlen(msg_size_str)) printf("CLIENT: WARNING: Not all data written to socket!\n");
-    printf("CLIENT: informing server to expect \"%s\" characters.\n", msg_size_str);
-    
-    
-    charsWritten = send(socketFD, text, strlen(text), 0); 
-    if (charsWritten < 0) error("CLIENT: ERROR writing to socket");
-    if (charsWritten < strlen(text)) printf("CLIENT: WARNING: Not all data written to socket!\n");
-    printf("CLIENT: sending this message to server: \"%s\"\n", text);
+    while (remaining_chars > 0) {
+
+        // determine number of characters to send not including \0
+        if (remaining_chars > MAX_SEND_SIZE) {
+            msg_size_int = MAX_SEND_SIZE;
+        }
+        else {
+            msg_size_int = remaining_chars; 
+        }
+
+        char transmission[msg_size_int + 1];   // add one for \0
+        memset(transmission, '\0', sizeof(transmission));
+        strncpy(transmission, complete_msg+offset, msg_size_int);
+        
+        int charsWritten = send(socketFD, transmission, msg_size_int, 0); 
+        if (charsWritten < 0) error("CLIENT: ERROR writing to socket");
+        if (charsWritten < msg_size_int) printf("CLIENT: WARNING: Not all data written to socket!\n");
+
+        printf("CLIENT: sending this message to server: \"%s\"\n", transmission);
+
+        offset += msg_size_int;
+        remaining_chars -= msg_size_int;
+    }
 }
 
 int main(int argc, char *argv[])
@@ -56,13 +72,30 @@ int main(int argc, char *argv[])
     if (connect(socketFD, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0) // Connect socket to address
             error("CLIENT: ERROR connecting");
 
+    // send password
+    char password[2];
+    memset(password, '\0', 2);
+    strcpy(password, "$");
+    charsWritten = send(socketFD, password, 1, 0); 
+
+    // wait for acknowledge (receive password:  '#')
+    recv(socketFD, password, 1, 0);
+
+    if (strcmp(password, "#") != 0) {
+        printf("CLIENT: ERROR received incorrect password (%s) back from server.", password);
+        exit(1);
+    }
+    else {
+        printf("CLIENT: successfully connected to server.  Prepraring to send plaintext...\n");
+    }
+
     // Get plaintext from file 
     char* buffer;    // buffer to hold text
 
     long file_length;
     FILE *plaintextFD = fopen(argv[1], "r");
     if (plaintextFD == NULL) {
-        error("CLINET: ERROR opening plaintext file");
+        error("CLIENT: ERROR opening plaintext file");
     }
     else {
         fseek(plaintextFD, 0, SEEK_END);
@@ -82,7 +115,7 @@ int main(int argc, char *argv[])
     buffer[strcspn(buffer, "\n")] = '\0'; // Remove the trailing \n that fgets adds
     */
 
-    send_to_server(buffer, strlen(buffer), socketFD);
+    send_to_server(buffer, socketFD);
 
     /*
     // Send plaintext message to server
