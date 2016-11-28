@@ -8,7 +8,7 @@
 #include <netdb.h> 
 
 
-int MAX_SEND_SIZE = 999;
+int MAX_MSG_SIZE = 999;
 
 void error(const char *msg) { perror(msg); exit(1); } // Error function used for reporting issues
 
@@ -25,8 +25,8 @@ void send_to_server(const char *text, int socketFD) {
     while (remaining_chars > 0) {
 
         // determine number of characters to send not including \0
-        if (remaining_chars > MAX_SEND_SIZE) {
-            msg_size_int = MAX_SEND_SIZE;
+        if (remaining_chars > MAX_MSG_SIZE) {
+            msg_size_int = MAX_MSG_SIZE;
         }
         else {
             msg_size_int = remaining_chars; 
@@ -41,6 +41,7 @@ void send_to_server(const char *text, int socketFD) {
         if (charsWritten < msg_size_int) printf("CLIENT: WARNING: Not all data written to socket!\n");
 
         printf("CLIENT: sending this message to server: \"%s\"\n", transmission);
+        fflush(stdout);
 
         offset += msg_size_int;
         remaining_chars -= msg_size_int;
@@ -49,11 +50,59 @@ void send_to_server(const char *text, int socketFD) {
 
 int main(int argc, char *argv[])
 {
-    int socketFD, portNumber, charsWritten, charsRead;
+    int socketFD, portNumber;
     struct sockaddr_in serverAddress;
     struct hostent* serverHostInfo;
 
     if (argc < 4) { fprintf(stderr,"USAGE: %s plaintext key  port\n", argv[0]); exit(0); } // Check usage & args
+    
+    // Get plaintext from file 
+    char* plaintext_buffer;    // buffer to hold text
+
+    long plaintext_length;
+    FILE *plaintextFD = fopen(argv[1], "r");
+    if (plaintextFD == NULL) {
+        error("CLIENT: ERROR opening plaintext file");
+    }
+    else {
+        fseek(plaintextFD, 0, SEEK_END);
+        plaintext_length = ftell(plaintextFD);   
+        fseek(plaintextFD, 0, SEEK_SET);
+        plaintext_buffer = malloc(plaintext_length + 1);    // add 1 for \0
+        if (plaintext_buffer) {
+            memset(plaintext_buffer, '\0', sizeof(plaintext_buffer)); // Clear out the buffer array
+            fread(plaintext_buffer, 1, plaintext_length, plaintextFD);
+            plaintext_buffer[strcspn(plaintext_buffer, "\n")] = '\0'; // strip trailing newline
+        }
+        fclose(plaintextFD);
+    }
+
+    
+    // Get key from file 
+    char* key_buffer;    // buffer to hold text
+    long key_length;
+    FILE *keyFD = fopen(argv[2], "r");
+    if (keyFD == NULL) {
+        error("CLIENT: ERROR opening key file");
+    }
+    else {
+        fseek(keyFD, 0, SEEK_END);
+        key_length = ftell(keyFD);   
+        fseek(keyFD, 0, SEEK_SET);
+        key_buffer = malloc(key_length + 1);   // add 1 for \0
+        if (key_buffer) {
+            memset(key_buffer, '\0', sizeof(key_buffer)); // Clear out the buffer array
+            fread(key_buffer, 1, plaintext_length, plaintextFD);
+            key_buffer[strcspn(key_buffer, "\n")] = '\0'; // strip trailing newline
+        }
+        fclose(keyFD);
+    }
+
+    // ensure key length is >= plaintext length
+    if (strlen(plaintext_buffer) > strlen(key_buffer)) {
+        fprintf(stderr, "ERROR: key is too short.\n");
+        exit(1);
+    }
 
     // Set up the server address struct
     memset((char*)&serverAddress, '\0', sizeof(serverAddress)); // Clear out the address struct
@@ -76,80 +125,49 @@ int main(int argc, char *argv[])
     char password[2];
     memset(password, '\0', 2);
     strcpy(password, "$");
-    charsWritten = send(socketFD, password, 1, 0); 
+    send(socketFD, password, 1, 0); 
 
     // wait for acknowledge (receive password:  '#')
     recv(socketFD, password, 1, 0);
 
     if (strcmp(password, "#") != 0) {
         printf("CLIENT: ERROR received incorrect password (%s) back from server.", password);
+        fflush(stdout);
         exit(1);
     }
     else {
         printf("CLIENT: successfully connected to server.  Prepraring to send plaintext...\n");
+        fflush(stdout);
     }
 
-    // Get plaintext from file 
-    char* buffer;    // buffer to hold text
-
-    long file_length;
-    FILE *plaintextFD = fopen(argv[1], "r");
-    if (plaintextFD == NULL) {
-        error("CLIENT: ERROR opening plaintext file");
-    }
-    else {
-        fseek(plaintextFD, 0, SEEK_END);
-        file_length = ftell(plaintextFD);   // subtract one since we don't want the newline at end
-        fseek(plaintextFD, 0, SEEK_SET);
-        buffer = malloc(file_length + 1);
-        if (buffer) {
-            memset(buffer, '\0', sizeof(buffer)); // Clear out the buffer array
-            fread(buffer, 1, file_length, plaintextFD);
-            buffer[strcspn(buffer, "\n")] = '\0'; // strip trailing newline
-        }
-        fclose(plaintextFD);
-    }
+    // trim key so that it is equal in length to plaintext
+    char key[strlen(plaintext_buffer) + 1];
+    memset(key, '\0', strlen(plaintext_buffer) + 1);
+    strncpy(key, key_buffer, strlen(plaintext_buffer)); 
     
-    /*
-    fgets(buffer, sizeof(buffer) - 1, stdin); // Get input from the user, trunc to buffer - 1 chars, leaving \0
-    buffer[strcspn(buffer, "\n")] = '\0'; // Remove the trailing \n that fgets adds
-    */
-
-    send_to_server(buffer, socketFD);
-
-    /*
-    // Send plaintext message to server
-    charsWritten = send(socketFD, buffer, strlen(buffer), 0); // Write to the server
-    if (charsWritten < 0) error("CLIENT: ERROR writing to socket");
-    if (charsWritten < strlen(buffer)) printf("CLIENT: WARNING: Not all data written to socket!\n");
-    */
-    
-    /*
-    // Get key from file 
-    memset(buffer, '\0', sizeof(buffer)); // Clear out the buffer array
-    FILE *keyFD = fopen(argv[2], "r");
-    if (keyFD == NULL) {
-        error("CLINET: ERROR opening key file");
-    }
-    else {
-        fread(buffer, 1, file_length, keyFD);
-        fclose(keyFD);
-    }
+    // Send plaintext to server
+    send_to_server(plaintext_buffer, socketFD);
     
     // Send key to server
-    charsWritten = send(socketFD, buffer, strlen(buffer), 0); // Write to the server
-    if (charsWritten < 0) error("CLIENT: ERROR writing to socket");
-    if (charsWritten < strlen(buffer)) printf("CLIENT: WARNING: Not all data written to socket!\n");
-    */
+    send_to_server(key, socketFD);
 
-    // Get return message from server
-    memset(buffer, '\0', sizeof(buffer)); // Clear out the buffer again for reuse
+    // receive ciphertext from server
+    char cipher[70000], read_buffer[MAX_MSG_SIZE+1];
+    memset(cipher, '\0', sizeof(cipher));
+    while (strstr(cipher, "$$") == NULL) {  // until terminal is found
+        memset(read_buffer, '\0', sizeof(read_buffer));
+        int charsRead = recv(socketFD, read_buffer, sizeof(read_buffer)-1, 0); 
+        strcat(cipher, read_buffer); 
+        if (charsRead < 0) error("ERROR reading from socket");
+    }
+    
+    // strip terminal characters from cipher
+    int terminalLocation = strstr(cipher, "$$") - cipher;
+    cipher[terminalLocation] = '\0';
 
-    /*
-    charsRead = recv(socketFD, buffer, sizeof(buffer) - 1, 0); // Read data from the socket, leaving \0 at end
-    if (charsRead < 0) error("CLIENT: ERROR reading from socket");
-    printf("CLIENT: I received this from the server: \"%s\"\n", buffer);
-    */
+    // send cipher to stdout
+    printf("CLIENT: I received this ciphertext from the server: \"%s\"\n", cipher);
+    fflush(stdout);
 
     close(socketFD); // Close the socket
     return 0;

@@ -4,16 +4,55 @@
 #include <unistd.h>
 #include <sys/types.h> 
 #include <sys/socket.h>
+#include <sys/wait.h>
 #include <netinet/in.h>
 
 
 int MAX_MSG_SIZE = 999;
 
 void error(const char *msg) { perror(msg); exit(1); } // Error function used for reporting issues
-void encrypt(const char *plaintext, const char *key, char *encryption, const int length) {
+
+void send_to_client(const char *text, int socketFD) {
+
+    int msg_size_int;
+    int offset = 0;          // keeps track of how many chars have been sent so far
+    char complete_msg[strlen(text) + 3];  // add 2 for terminal chars and 1 for \0
+    memset(complete_msg, '\0', sizeof(complete_msg));
+    strcat(complete_msg, text);
+    strcat(complete_msg, "$$");
+    int remaining_chars = strlen(complete_msg);
+
+    while (remaining_chars > 0) {
+
+        // determine number of characters to send not including \0
+        if (remaining_chars > MAX_MSG_SIZE) {
+            msg_size_int = MAX_MSG_SIZE;
+        }
+        else {
+            msg_size_int = remaining_chars; 
+        }
+
+        char transmission[msg_size_int + 1];   // add one for \0
+        memset(transmission, '\0', sizeof(transmission));
+        strncpy(transmission, complete_msg+offset, msg_size_int);
+        
+        int charsWritten = send(socketFD, transmission, msg_size_int, 0); 
+        if (charsWritten < 0) error("SERVER: ERROR writing to socket");
+        if (charsWritten < msg_size_int) printf("SERVER: WARNING: Not all data written to socket!\n");
+
+        printf("SERVER: sending this message to client: \"%s\"\n", transmission);
+        fflush(stdout);
+
+        offset += msg_size_int;
+        remaining_chars -= msg_size_int;
+    }
+}
+
+
+void encrypt(const char *plaintext, const char *key, char *cipher) {
     int i;
     char c, p, k;
-    for (i = 0; i < length; i++) {
+    for (i = 0; i < strlen(plaintext); i++) {
         k = key[i] - 65;
         p = plaintext[i] - 65;
 
@@ -34,7 +73,7 @@ void encrypt(const char *plaintext, const char *key, char *encryption, const int
         if (c == 26) { c = 32; }     // convert to ascii blank space
         else { c += 65; }            // convert to ascii A-Z
 
-        encryption[i] = c;
+        cipher[i] = c;
     }
 }
 
@@ -43,10 +82,6 @@ int main(int argc, char *argv[])
 {
     int listenSocketFD, establishedConnectionFD, portNumber, charsRead;
     socklen_t sizeOfClientInfo;
-    char plaintext_buffer[MAX_MSG_SIZE];
-    char size_buffer[4];      // holds size of incoming message (3 plus \0 so max is 999);
-    char key_buffer[MAX_MSG_SIZE];
-    char encryption_buffer[MAX_MSG_SIZE];
     struct sockaddr_in serverAddress, clientAddress;
 
     if (argc < 2) { fprintf(stderr,"USAGE: %s port\n", argv[0]); exit(1); } // Check usage & args
@@ -76,6 +111,7 @@ int main(int argc, char *argv[])
         establishedConnectionFD = accept(listenSocketFD, (struct sockaddr *)&clientAddress, &sizeOfClientInfo); // Accept
         if (establishedConnectionFD < 0) error("ERROR on accept");
         printf("SERVER: Connected Client at port %d\n", ntohs(clientAddress.sin_port));
+        fflush(stdout);
 
         // spawn child process
         pid_t spawnPid = -5;
@@ -95,15 +131,16 @@ int main(int argc, char *argv[])
 
                 if (strcmp(password, "$") != 0) { 
                     printf("SERVER: Could not connect to otp_enc_d. Incorrect password.\n"); 
+                    fflush(stdout);
                     continue; 
                 }
                 else {
                     printf("SERVER: Successfully made connection between otp_enc_d and otp_enc.\n");
+                    fflush(stdout);
                     strcpy(password, "#");
                     // acknowledge by sending back '#'
                     send(establishedConnectionFD, password, 1, 0);
                 }
-
 
                 // child Get the plaintext message from the client and display it
                 char complete_msg[70000], read_buffer[MAX_MSG_SIZE+1];
@@ -119,11 +156,34 @@ int main(int argc, char *argv[])
                 int terminalLocation = strstr(complete_msg, "$$") - complete_msg;
                 complete_msg[terminalLocation] = '\0';
                 printf("SERVER: I received this plaintext from the client: \"%s\"\n", complete_msg);
+                fflush(stdout);
 
                 // child receive key
-                // child check that key is big enough
+                char complete_key[70000];
+                memset(complete_key, '\0', sizeof(complete_key));
+                while (strstr(complete_key, "$$") == NULL) {  // until terminal is found
+                    memset(read_buffer, '\0', sizeof(read_buffer));
+                    charsRead = recv(establishedConnectionFD, read_buffer, sizeof(read_buffer)-1, 0); 
+                    strcat(complete_key, read_buffer); 
+                    if (charsRead < 0) error("ERROR reading from socket");
+                }
+
+                printf("SERVER: I received this key from the client: \"%s\"\n", complete_key);
+                fflush(stdout);
+
+                // Note:  validation that key is big enough already performed in otp_enc
+                // Also, don't need to strip terminal chars from complete_key since encrypt() is
+                // based on length of complete_msg.
+                
                 // child perform encryption
-                // child send ciphertext
+                char complete_cipher[70000];
+                memset(complete_cipher, '\0', sizeof(complete_cipher));
+                encrypt(complete_msg, complete_key, complete_cipher);
+                printf("SERVER: encrypted message: \"%s\"\n", complete_cipher);
+                fflush(stdout);
+                
+                // child send back ciphertext 
+                send_to_client(complete_cipher, establishedConnectionFD);
 
                 exit(0);
                 break;
@@ -138,25 +198,6 @@ int main(int argc, char *argv[])
             }
         }
 
-        /*
-        // Get the key from the client and display it
-        memset(key_buffer, '\0', MAX_MSG_SIZE);
-        charsRead = recv(establishedConnectionFD, key_buffer, MAX_MSG_SIZE-1, 0); 
-        if (charsRead < 0) error("ERROR reading from socket");
-        printf("SERVER: I received this key from the client: \"%s\"\n", key_buffer);
-
-        // Encrypt the message
-        memset(encryption_buffer, '\0', MAX_MSG_SIZE);
-        encrypt(plaintext_buffer, key_buffer, encryption_buffer, MAX_MSG_SIZE);
-         
-        printf("SERVER: encrypted message: \"%s\"\n", encryption_buffer);
-        */
-
-        // Send a Success message back to the client
-        /*
-        charsRead = send(establishedConnectionFD, "I am the server, and I got your message", 39, 0); // Send success back
-        if (charsRead < 0) error("ERROR writing to socket");
-        */
         close(establishedConnectionFD); // Close the existing socket which is connected to the client
     }
 
