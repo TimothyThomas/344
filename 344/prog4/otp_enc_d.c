@@ -9,6 +9,7 @@
 
 
 int MAX_MSG_SIZE = 999;
+int LOGGING_ON = 0;        // flag to control logging to stdout
 
 void error(const char *msg) { perror(msg); exit(1); } // Error function used for reporting issues
 
@@ -40,8 +41,10 @@ void send_to_client(const char *text, int socketFD) {
         if (charsWritten < 0) error("SERVER: ERROR writing to socket");
         if (charsWritten < msg_size_int) printf("SERVER: WARNING: Not all data written to socket!\n");
 
-        printf("SERVER: sending this message to client: \"%s\"\n", transmission);
-        fflush(stdout);
+        if (LOGGING_ON) {
+            printf("SERVER: sending this message to client: \"%s\"\n", transmission);
+            fflush(stdout);
+        }
 
         offset += msg_size_int;
         remaining_chars -= msg_size_int;
@@ -110,8 +113,11 @@ int main(int argc, char *argv[])
         sizeOfClientInfo = sizeof(clientAddress); // Get the size of the address for the client that will connect
         establishedConnectionFD = accept(listenSocketFD, (struct sockaddr *)&clientAddress, &sizeOfClientInfo); // Accept
         if (establishedConnectionFD < 0) error("ERROR on accept");
-        printf("SERVER: Connected Client at port %d\n", ntohs(clientAddress.sin_port));
-        fflush(stdout);
+
+        if (LOGGING_ON) {
+            printf("SERVER: Connected Client at port %d\n", ntohs(clientAddress.sin_port));
+            fflush(stdout);
+        }
 
         // spawn child process
         pid_t spawnPid = -5;
@@ -135,10 +141,12 @@ int main(int argc, char *argv[])
                     continue; 
                 }
                 else {
-                    printf("SERVER: Successfully made connection between otp_enc_d and otp_enc.\n");
-                    fflush(stdout);
-                    strcpy(password, "#");
-                    // acknowledge by sending back '#'
+                    if (LOGGING_ON) {
+                        printf("SERVER: Successfully made connection between otp_enc_d and otp_enc.\n");
+                        fflush(stdout);
+                    }
+                    strcpy(password, "$");
+                    // acknowledge by sending back '$'
                     send(establishedConnectionFD, password, 1, 0);
                 }
 
@@ -155,8 +163,10 @@ int main(int argc, char *argv[])
                 // strip terminal characters
                 int terminalLocation = strstr(complete_msg, "$$") - complete_msg;
                 complete_msg[terminalLocation] = '\0';
-                printf("SERVER: I received this plaintext from the client: \"%s\"\n", complete_msg);
-                fflush(stdout);
+                if (LOGGING_ON) {
+                    printf("SERVER: I received this plaintext from the client: \"%s\"\n", complete_msg);
+                    fflush(stdout);
+                }
 
                 // child receive key
                 char complete_key[70000];
@@ -168,8 +178,10 @@ int main(int argc, char *argv[])
                     if (charsRead < 0) error("ERROR reading from socket");
                 }
 
-                printf("SERVER: I received this key from the client: \"%s\"\n", complete_key);
-                fflush(stdout);
+                if (LOGGING_ON) {
+                    printf("SERVER: I received this key from the client: \"%s\"\n", complete_key);
+                    fflush(stdout);
+                }
 
                 // Note:  validation that key is big enough already performed in otp_enc
                 // Also, don't need to strip terminal chars from complete_key since encrypt() is
@@ -179,8 +191,11 @@ int main(int argc, char *argv[])
                 char complete_cipher[70000];
                 memset(complete_cipher, '\0', sizeof(complete_cipher));
                 encrypt(complete_msg, complete_key, complete_cipher);
-                printf("SERVER: encrypted message: \"%s\"\n", complete_cipher);
-                fflush(stdout);
+
+                if (LOGGING_ON) {
+                    printf("SERVER: encrypted message: \"%s\"\n", complete_cipher);
+                    fflush(stdout);
+                }
                 
                 // child send back ciphertext 
                 send_to_client(complete_cipher, establishedConnectionFD);

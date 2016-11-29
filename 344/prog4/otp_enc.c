@@ -9,6 +9,7 @@
 
 
 int MAX_MSG_SIZE = 999;
+int LOGGING_ON = 0;        // flag to control logging to stdout
 
 void error(const char *msg) { perror(msg); exit(1); } // Error function used for reporting issues
 
@@ -40,8 +41,10 @@ void send_to_server(const char *text, int socketFD) {
         if (charsWritten < 0) error("CLIENT: ERROR writing to socket");
         if (charsWritten < msg_size_int) printf("CLIENT: WARNING: Not all data written to socket!\n");
 
-        printf("CLIENT: sending this message to server: \"%s\"\n", transmission);
-        fflush(stdout);
+        if (LOGGING_ON) {
+            printf("CLIENT: sending this message to server: \"%s\"\n", transmission);
+            fflush(stdout);
+        }
 
         offset += msg_size_int;
         remaining_chars -= msg_size_int;
@@ -101,8 +104,10 @@ int main(int argc, char *argv[])
     // ensure key length is >= plaintext length
     if (strlen(plaintext_buffer) > strlen(key_buffer)) {
         fprintf(stderr, "ERROR: key is too short.\n");
-        exit(1);
+        exit(2);
     }
+
+    // TODO: check for bad characters in key/plaintext files
 
     // Set up the server address struct
     memset((char*)&serverAddress, '\0', sizeof(serverAddress)); // Clear out the address struct
@@ -127,17 +132,19 @@ int main(int argc, char *argv[])
     strcpy(password, "$");
     send(socketFD, password, 1, 0); 
 
-    // wait for acknowledge (receive password:  '#')
+    // wait for acknowledge (receive password:  '$')
     recv(socketFD, password, 1, 0);
 
-    if (strcmp(password, "#") != 0) {
-        printf("CLIENT: ERROR received incorrect password (%s) back from server.", password);
+    if (strcmp(password, "$") != 0) {
+        fprintf(stderr, "CLIENT: ERROR connection rejected.\n");
         fflush(stdout);
         exit(1);
     }
     else {
-        printf("CLIENT: successfully connected to server.  Prepraring to send plaintext...\n");
-        fflush(stdout);
+        if (LOGGING_ON) {
+            printf("CLIENT: successfully connected to server.  Prepraring to send plaintext...\n");
+            fflush(stdout);
+        }
     }
 
     // trim key so that it is equal in length to plaintext
@@ -166,7 +173,7 @@ int main(int argc, char *argv[])
     cipher[terminalLocation] = '\0';
 
     // send cipher to stdout
-    printf("CLIENT: I received this ciphertext from the server: \"%s\"\n", cipher);
+    printf("%s\n", cipher);
     fflush(stdout);
 
     close(socketFD); // Close the socket
