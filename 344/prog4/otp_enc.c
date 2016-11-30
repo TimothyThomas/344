@@ -13,6 +13,21 @@ int LOGGING_ON = 0;        // flag to control logging to stdout
 
 void error(const char *msg) { perror(msg); exit(1); } // Error function used for reporting issues
 
+void check_for_illegal_chars(const char *buffer, const char *filename) {
+    int i;
+    char c;
+    for (i = 0; i < strlen(buffer); i++) {
+        c = buffer[i];
+        if (c < 65 || c > 90) {
+            if (c !=32 ) {
+                fprintf(stderr, "ERROR: illegal characters detected in %s.\n", filename);
+                exit(1);
+            }
+        }
+    }
+}
+
+
 void send_to_server(const char *text, int socketFD) {
 
     int msg_size_int;
@@ -107,7 +122,9 @@ int main(int argc, char *argv[])
         exit(2);
     }
 
-    // TODO: check for bad characters in key/plaintext files
+    // Check for bad characters in key/plaintext files
+    check_for_illegal_chars(plaintext_buffer, argv[1]);
+    check_for_illegal_chars(key_buffer, argv[2]);
 
     // Set up the server address struct
     memset((char*)&serverAddress, '\0', sizeof(serverAddress)); // Clear out the address struct

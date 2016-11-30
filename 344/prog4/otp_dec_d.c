@@ -143,9 +143,8 @@ int main(int argc, char *argv[])
                 charsRead = recv(establishedConnectionFD, password, 1, 0); 
 
                 if (strcmp(password, "%") != 0) { 
-                    printf("SERVER: Could not connect to otp_enc_d. Incorrect password.\n"); 
+                    fprintf(stderr, "ERROR: Connection of otp_enc to otp_dec_d not allowed.\n"); 
                     fflush(stdout);
-                    // TODO:  Send a rejection message?
                     exit(1); 
                 }
                 else {

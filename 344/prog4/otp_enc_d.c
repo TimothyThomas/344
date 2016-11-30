@@ -60,16 +60,8 @@ void encrypt(const char *plaintext, const char *key, char *cipher) {
         p = plaintext[i] - 65;
 
         if (k == -33) { k = 26; }   // blank space, set to 26 since A-Z is now 0-25.
-        else if (k < 0 || k > 25) { 
-            error("Illegal characters detected in key.");
-        }
-        else {}
 
         if (p == -33) { p = 26; }   // blank space, set to 26 since A-Z is now 0-25.
-        else if (p < 0 || p > 25) { 
-            error("Illegal characters detected in plaintext.");
-        }
-        else {}
 
         c = (p + k) % 27;
         
@@ -136,9 +128,9 @@ int main(int argc, char *argv[])
                 charsRead = recv(establishedConnectionFD, password, 1, 0); 
 
                 if (strcmp(password, "$") != 0) { 
-                    printf("SERVER: Could not connect to otp_enc_d. Incorrect password.\n"); 
+                    fprintf(stderr, "ERROR: Connection of otp_dec to otp_enc_d not allowed.\n"); 
                     fflush(stdout);
-                    continue; 
+                    exit(1);
                 }
                 else {
                     if (LOGGING_ON) {
