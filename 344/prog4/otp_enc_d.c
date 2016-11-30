@@ -130,6 +130,7 @@ int main(int argc, char *argv[])
                 if (strcmp(password, "$") != 0) { 
                     fprintf(stderr, "ERROR: Connection of otp_dec to otp_enc_d not allowed.\n"); 
                     fflush(stdout);
+                    close(establishedConnectionFD); // Close the existing socket which is connected to the client
                     exit(1);
                 }
                 else {
@@ -175,9 +176,9 @@ int main(int argc, char *argv[])
                     fflush(stdout);
                 }
 
-                // Note:  validation that key is big enough already performed in otp_enc
-                // Also, don't need to strip terminal chars from complete_key since encrypt() is
-                // based on length of complete_msg.
+                // Note: don't need to strip terminal chars from complete_key since encrypt() is
+                // based on length of complete_msg (which was already validated
+                // in otp_enc to be less than or equal to the length of complete_key.
                 
                 // child perform encryption
                 char complete_cipher[70000];
@@ -193,14 +194,6 @@ int main(int argc, char *argv[])
                 send_to_client(complete_cipher, establishedConnectionFD);
 
                 exit(0);
-                break;
-            }
-
-            default: {       // parent process
-
-                // wait for child to finish. 
-                // TODO: might need to remove this to handle multiple connections.
-                waitpid(spawnPid, &childExitMethod, 0);
                 break;
             }
         }

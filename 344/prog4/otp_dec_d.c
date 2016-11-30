@@ -190,8 +190,7 @@ int main(int argc, char *argv[])
                     fflush(stdout);
                 }
 
-                // Note:  validation that key is big enough already performed in otp_dec
-                // Also, don't need to strip terminal chars from complete_key since decrypt() is
+                // Note: don't need to strip terminal chars from complete_key since decrypt() is
                 // based on length of complete_msg.
                 
                 // child perform decryption
@@ -208,14 +207,6 @@ int main(int argc, char *argv[])
                 send_to_client(complete_plaintext, establishedConnectionFD);
 
                 exit(0);
-                break;
-            }
-
-            default: {       // parent process
-
-                // wait for child to finish. 
-                // TODO: might need to remove this to handle multiple connections.
-                waitpid(spawnPid, &childExitMethod, 0);
                 break;
             }
         }

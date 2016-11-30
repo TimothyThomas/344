@@ -140,8 +140,11 @@ int main(int argc, char *argv[])
     if (socketFD < 0) error("CLIENT: ERROR opening socket");
     
     // Connect to server
-    if (connect(socketFD, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0) // Connect socket to address
-            error("CLIENT: ERROR connecting");
+    if (connect(socketFD, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0) { // Connect socket to address
+        fprintf(stderr, "ERROR connecting to server on port %d\n", portNumber);
+        fflush(stdout);
+        exit(2);
+    }
 
     // send password
     char password[2];
