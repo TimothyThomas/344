@@ -153,7 +153,8 @@ int main(int argc, char *argv[])
     send(socketFD, password, 1, 0); 
 
     // wait for acknowledge (receive password:  '$')
-    recv(socketFD, password, 1, 0);
+    int charsRead = recv(socketFD, password, 1, 0);
+    if (charsRead < 0) error("ERROR reading from socket");
 
     if (strcmp(password, "$") != 0) {
         fprintf(stderr, "CLIENT: ERROR connection rejected.\n");
@@ -168,22 +169,26 @@ int main(int argc, char *argv[])
     }
 
     // trim key so that it is equal in length to plaintext
-    char key[strlen(plaintext_buffer) + 1];
-    memset(key, '\0', strlen(plaintext_buffer) + 1);
-    strncpy(key, key_buffer, strlen(plaintext_buffer)); 
+    //char key[strlen(plaintext_buffer) + 1];
+    ////memset(key, '\0', strlen(plaintext_buffer) + 1);
+    ////strncpy(key, key_buffer, strlen(plaintext_buffer)); 
     
     // Send plaintext to server
     send_to_server(plaintext_buffer, socketFD);
     
+    // wait for acknowledge (receive password:  '$')
+    charsRead = recv(socketFD, password, 1, 0);
+    if (charsRead < 0) error("ERROR reading from socket");
+    
     // Send key to server
-    send_to_server(key, socketFD);
+    send_to_server(key_buffer, socketFD);
 
     // receive ciphertext from server
     char cipher[70000], read_buffer[MAX_MSG_SIZE+1];
     memset(cipher, '\0', sizeof(cipher));
     while (strstr(cipher, "$$") == NULL) {  // until terminal is found
         memset(read_buffer, '\0', sizeof(read_buffer));
-        int charsRead = recv(socketFD, read_buffer, sizeof(read_buffer)-1, 0); 
+        charsRead = recv(socketFD, read_buffer, sizeof(read_buffer)-1, 0); 
         strcat(cipher, read_buffer); 
         if (charsRead < 0) error("ERROR reading from socket");
     }

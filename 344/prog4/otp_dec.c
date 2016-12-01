@@ -106,9 +106,6 @@ int main(int argc, char *argv[])
         exit(2);
     }
 
-    // TODO: check for bad characters in key/plaintext files
-    
-
     // Set up the server address struct
     memset((char*)&serverAddress, '\0', sizeof(serverAddress)); // Clear out the address struct
     portNumber = atoi(argv[3]); // Get the port number, convert to an integer from a string
@@ -123,8 +120,11 @@ int main(int argc, char *argv[])
     if (socketFD < 0) error("CLIENT: ERROR opening socket");
     
     // Connect to server
-    if (connect(socketFD, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0) // Connect socket to address
-            error("CLIENT: ERROR connecting");
+    if (connect(socketFD, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0) { // Connect socket to address
+        fprintf(stderr, "ERROR connecting to server on port %d\n", portNumber);
+        fflush(stdout);
+        exit(2);
+    }
 
     // send password
     char password[2];
@@ -133,7 +133,8 @@ int main(int argc, char *argv[])
     send(socketFD, password, 1, 0); 
 
     // wait for acknowledge (receive password:  '%')
-    recv(socketFD, password, 1, 0);
+    int charsRead = recv(socketFD, password, 1, 0);
+    if (charsRead < 0) error("ERROR reading from socket");
 
     if (strcmp(password, "%") != 0) {
         fprintf(stderr, "CLIENT: ERROR connection rejected.\n");
@@ -147,23 +148,23 @@ int main(int argc, char *argv[])
         }
     }
 
-    // trim key so that it is equal in length to ciphertext
-    char key[strlen(ciphertext_buffer) + 1];
-    memset(key, '\0', strlen(ciphertext_buffer) + 1);
-    strncpy(key, key_buffer, strlen(ciphertext_buffer)); 
     
     // Send ciphertext to server
     send_to_server(ciphertext_buffer, socketFD);
     
+    // wait for acknowledge (receive password:  '%')
+    charsRead = recv(socketFD, password, 1, 0);
+    if (charsRead < 0) error("ERROR reading from socket");
+    
     // Send key to server
-    send_to_server(key, socketFD);
+    send_to_server(key_buffer, socketFD);
 
     // receive plaintext from server
     char plaintext[70000], read_buffer[MAX_MSG_SIZE+1];
     memset(plaintext, '\0', sizeof(plaintext));
     while (strstr(plaintext, "%%") == NULL) {  // until terminal is found
         memset(read_buffer, '\0', sizeof(read_buffer));
-        int charsRead = recv(socketFD, read_buffer, sizeof(read_buffer)-1, 0); 
+        charsRead = recv(socketFD, read_buffer, sizeof(read_buffer)-1, 0); 
         strcat(plaintext, read_buffer); 
         if (charsRead < 0) error("ERROR reading from socket");
     }

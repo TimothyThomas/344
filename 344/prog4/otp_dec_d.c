@@ -166,6 +166,10 @@ int main(int argc, char *argv[])
                     strcat(complete_msg, read_buffer); 
                     if (charsRead < 0) error("ERROR reading from socket");
                 }
+                
+                // Acknowledge plaintext received to split up the communication
+                // or else the key may bleed into the plaintext reads
+                send(establishedConnectionFD, password, 1, 0);
 
                 // strip terminal characters
                 int terminalLocation = strstr(complete_msg, "%%") - complete_msg;
