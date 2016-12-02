@@ -1,3 +1,10 @@
+/* 
+ * CS 344 Fall 2016
+ * Program 4 -- otp_dec_d
+ * by Tim Thomas 
+ *
+ * Usage:   ./otp_dec_d port 
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,11 +15,15 @@
 #include <netinet/in.h>
 
 
-int MAX_MSG_SIZE = 999;
+int MAX_MSG_SIZE = 999;    // max number of characters that can be sent/recieved at once
 int LOGGING_ON = 0;        // flag to control logging to stdout
 
 void error(const char *msg) { perror(msg); exit(1); } // Error function used for reporting issues
 
+/* 
+ * This functions sends the text string pointed to by "text" to the socket file 
+ * descriptor pointed to by socketFD.
+ */
 void send_to_client(const char *text, int socketFD) {
 
     int msg_size_int;
@@ -52,25 +63,22 @@ void send_to_client(const char *text, int socketFD) {
 }
 
 
+/*
+ * This function decrypts text stored in ciphertext using modulo arithmetic
+ * with the characters stored in key.  The result is stored in plaintext.
+ */
 void decrypt(const char *ciphertext, const char *key, char *plaintext) {
     int i;
     char c, p, k;
+    
+    // loop through each character in ciphertext since it is shorter than key
     for (i = 0; i < strlen(ciphertext); i++) {
         k = key[i] - 65;
         c = ciphertext[i] - 65;
 
         if (k == -33) { k = 26; }   // blank space, set to 26 since A-Z is now 0-25.
-        else if (k < 0 || k > 25) { 
-            error("Illegal characters detected in key.");
-        }
-        else {}
 
         if (c == -33) { c = 26; }   // blank space, set to 26 since A-Z is now 0-25.
-        else if (c < 0 || c > 25) { 
-            error("Illegal characters detected in plaintext.");
-        }
-        else {}
-
 
         if ((c - k) < 0) {
             p = (c - k ) + 27;
@@ -90,6 +98,7 @@ void decrypt(const char *ciphertext, const char *key, char *plaintext) {
 
 int main(int argc, char *argv[])
 {
+    // initialize everything needed for setting up sockets
     int listenSocketFD, establishedConnectionFD, portNumber, charsRead;
     socklen_t sizeOfClientInfo;
     struct sockaddr_in serverAddress, clientAddress;
@@ -128,7 +137,6 @@ int main(int argc, char *argv[])
 
         // spawn child process
         pid_t spawnPid = -5;
-        int childExitMethod = -5;
         spawnPid = fork();
 
         switch(spawnPid) {
@@ -137,11 +145,12 @@ int main(int argc, char *argv[])
 
             case 0: {   //child process
 
-                // child verify communication with otp_enc
+                // child verify communication with otp_dec
                 char password[2];
                 memset(password, '\0', 2);
                 charsRead = recv(establishedConnectionFD, password, 1, 0); 
 
+                // Check that correct password received
                 if (strcmp(password, "%") != 0) { 
                     fprintf(stderr, "ERROR: Connection of otp_enc to otp_dec_d not allowed.\n"); 
                     fflush(stdout);
@@ -195,7 +204,8 @@ int main(int argc, char *argv[])
                 }
 
                 // Note: don't need to strip terminal chars from complete_key since decrypt() is
-                // based on length of complete_msg.
+                // based on length of complete_msg.(which was already validated
+                // in otp_enc to be less than or equal to the length of complete_key.
                 
                 // child perform decryption
                 char complete_plaintext[70000];

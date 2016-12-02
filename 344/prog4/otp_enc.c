@@ -1,3 +1,11 @@
+/* 
+ * CS 344 Fall 2016
+ * Program 4 -- otp_enc
+ * by Tim Thomas 
+ *
+ * Usage:   ./otp_enc plaintext key port 
+ */
+#include <stdio.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -8,11 +16,16 @@
 #include <netdb.h> 
 
 
-int MAX_MSG_SIZE = 999;
+int MAX_MSG_SIZE = 999;    // max number of characters that can be sent/recieved at once
 int LOGGING_ON = 0;        // flag to control logging to stdout
 
 void error(const char *msg) { perror(msg); exit(1); } // Error function used for reporting issues
 
+
+/*
+ * Verifies than the characters in the string stored at buffer are in A-Z or a
+ * blank space
+ */
 void check_for_illegal_chars(const char *buffer, const char *filename) {
     int i;
     char c;
@@ -28,16 +41,23 @@ void check_for_illegal_chars(const char *buffer, const char *filename) {
 }
 
 
+/* 
+ * This functions sends the text string pointed to by "text" to the socket file 
+ * descriptor pointed to by socketFD.
+ */
 void send_to_server(const char *text, int socketFD) {
 
-    int msg_size_int;
+    int msg_size_int;        // size of a single transmission
     int offset = 0;          // keeps track of how many chars have been sent so far
     char complete_msg[strlen(text) + 3];  // add 2 for terminal chars and 1 for \0
     memset(complete_msg, '\0', sizeof(complete_msg));
+
+    // add terminal characters
     strcat(complete_msg, text);
     strcat(complete_msg, "$$");
     int remaining_chars = strlen(complete_msg);
 
+    // keep sending characters in chunks < MAX_MSG_SIZE until all are sent
     while (remaining_chars > 0) {
 
         // determine number of characters to send not including \0
@@ -48,10 +68,12 @@ void send_to_server(const char *text, int socketFD) {
             msg_size_int = remaining_chars; 
         }
 
+        // create this transmission
         char transmission[msg_size_int + 1];   // add one for \0
         memset(transmission, '\0', sizeof(transmission));
         strncpy(transmission, complete_msg+offset, msg_size_int);
         
+        // send and check characters sent
         int charsWritten = send(socketFD, transmission, msg_size_int, 0); 
         if (charsWritten < 0) error("CLIENT: ERROR writing to socket");
         if (charsWritten < msg_size_int) printf("CLIENT: WARNING: Not all data written to socket!\n");
@@ -68,6 +90,7 @@ void send_to_server(const char *text, int socketFD) {
 
 int main(int argc, char *argv[])
 {
+    // set up variables needed for sockets
     int socketFD, portNumber;
     struct sockaddr_in serverAddress;
     struct hostent* serverHostInfo;
@@ -76,7 +99,6 @@ int main(int argc, char *argv[])
     
     // Get plaintext from file 
     char* plaintext_buffer;    // buffer to hold text
-
     long plaintext_length;
     FILE *plaintextFD = fopen(argv[1], "r");
     if (plaintextFD == NULL) {
@@ -94,7 +116,6 @@ int main(int argc, char *argv[])
         }
         fclose(plaintextFD);
     }
-
     
     // Get key from file 
     char* key_buffer;    // buffer to hold text
@@ -156,6 +177,7 @@ int main(int argc, char *argv[])
     int charsRead = recv(socketFD, password, 1, 0);
     if (charsRead < 0) error("ERROR reading from socket");
 
+    // Check that we received the correct password
     if (strcmp(password, "$") != 0) {
         fprintf(stderr, "CLIENT: ERROR connection rejected.\n");
         fflush(stdout);
@@ -168,11 +190,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    // trim key so that it is equal in length to plaintext
-    //char key[strlen(plaintext_buffer) + 1];
-    ////memset(key, '\0', strlen(plaintext_buffer) + 1);
-    ////strncpy(key, key_buffer, strlen(plaintext_buffer)); 
-    
     // Send plaintext to server
     send_to_server(plaintext_buffer, socketFD);
     

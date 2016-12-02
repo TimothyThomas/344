@@ -1,3 +1,11 @@
+/* 
+ * CS 344 Fall 2016
+ * Program 4 -- otp_enc_d
+ * by Tim Thomas 
+ *
+ * Usage:   ./otp_enc_d port 
+ */
+#include <stdio.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,11 +16,16 @@
 #include <netinet/in.h>
 
 
-int MAX_MSG_SIZE = 999;
+int MAX_MSG_SIZE = 999;    // max number of characters that can be sent/recieved at once
 int LOGGING_ON = 0;        // flag to control logging to stdout
 
 void error(const char *msg) { perror(msg); exit(1); } // Error function used for reporting issues
 
+
+/* 
+ * This functions sends the text string pointed to by "text" to the socket file 
+ * descriptor pointed to by socketFD.
+ */
 void send_to_client(const char *text, int socketFD) {
 
     int msg_size_int;
@@ -51,10 +64,15 @@ void send_to_client(const char *text, int socketFD) {
     }
 }
 
-
+/*
+ * This function encrypts text stored in plaintext using modulo arithmetic
+ * with the characters stored in key.  The result is stored in cipher.
+ */
 void encrypt(const char *plaintext, const char *key, char *cipher) {
     int i;
     char c, p, k;
+    
+    // loop through each character in plaintext since it is shorter than key
     for (i = 0; i < strlen(plaintext); i++) {
         k = key[i] - 65;
         p = plaintext[i] - 65;
@@ -75,6 +93,7 @@ void encrypt(const char *plaintext, const char *key, char *cipher) {
 
 int main(int argc, char *argv[])
 {
+    // initialize everything needed for setting up sockets
     int listenSocketFD, establishedConnectionFD, portNumber, charsRead;
     socklen_t sizeOfClientInfo;
     struct sockaddr_in serverAddress, clientAddress;
@@ -113,7 +132,6 @@ int main(int argc, char *argv[])
 
         // spawn child process
         pid_t spawnPid = -5;
-        int childExitMethod = -5;
         spawnPid = fork();
 
         switch(spawnPid) {
@@ -127,6 +145,7 @@ int main(int argc, char *argv[])
                 memset(password, '\0', 2);
                 charsRead = recv(establishedConnectionFD, password, 1, 0); 
 
+                // Check that correct password received
                 if (strcmp(password, "$") != 0) { 
                     fprintf(stderr, "ERROR: Connection of otp_dec to otp_enc_d not allowed.\n"); 
                     fflush(stdout);
